@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `npm run dev`. Never commit .dev.vars.
+DEV_NO_ACCESS=1
+# Optional locally: without it, "Make clean copy" shows a "not set up" message.
+ANTHROPIC_API_KEY=

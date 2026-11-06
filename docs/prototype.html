@@ -1,0 +1,902 @@
+<title>Homework Desk</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Archivo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: assignment list on the left, worksheet pages stacked on the right; one column on phones. Groundwork tokens, light only. */
+:root{
+  --stone-900:#1F1A16;--stone-700:#3A322B;--stone-500:#6B5F54;--stone-400:#857868;--stone-300:#958979;
+  --stone-250:#CBC1B4;--stone-200:#DAD2C7;--stone-150:#E5DED4;--stone-100:#EEE8E0;--stone-075:#F3EEE7;--stone-050:#F7F3EE;--paper:#FFFDF9;
+  --clay-700:#7A3418;--clay-600:#8F3E1E;--clay-500:#A8492A;--clay-200:#E6C3B2;--clay-050:#F7EAE3;
+  --ox-700:#8A1F2C;--ox-200:#E8C6C9;--ox-050:#F8E8E8;
+  --text-primary:var(--stone-900);--text-body:var(--stone-700);--text-secondary:var(--stone-500);--text-faint:var(--stone-400);
+  --surface-ground:var(--stone-050);--surface-card:var(--paper);--surface-subtle:var(--stone-075);--surface-hover:#FBF8F4;
+  --border-card:var(--stone-150);--border-divider:var(--stone-100);--border-control:var(--stone-300);
+  --action:var(--clay-500);--action-hover:var(--clay-600);--action-pressed:var(--clay-700);--on-action:var(--paper);
+  --selected-bg:var(--clay-050);--selected-fg:var(--clay-600);
+  --ink:#1F669C;--ink-wash:rgba(31,102,156,.07);--ink-line:rgba(31,102,156,.45);
+  --font-ui:"Archivo",system-ui,sans-serif;--font-mono:"JetBrains Mono",ui-monospace,monospace;--font-answer:"Andika","Comic Neue",system-ui,sans-serif;
+  --r-sm:4px;--r-md:6px;--r-lg:10px;
+  --shadow-md:0 6px 20px rgba(31,26,22,.10),0 1px 3px rgba(31,26,22,.08);
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--surface-ground);color:var(--text-body);font:14px/1.5 var(--font-ui);}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface-card)}
+
+.app{display:grid;grid-template-columns:300px minmax(0,1fr);height:100%;}
+.side{background:var(--surface-card);border-right:1px solid var(--border-card);display:flex;flex-direction:column;min-height:0}
+.side-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:16px 12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:16px;border-bottom:1px solid var(--border-divider)}
+.brand{display:flex;flex-direction:column;gap:2px}
+.eyebrow{font:500 10px/1.2 var(--font-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary)}
+h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-primary)}
+.list{overflow:auto;flex:1;padding:6px 0}
+.row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--border-divider);padding:10px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));cursor:pointer;transition:background 160ms}
+.row:hover{background:var(--surface-hover)}
+.row[aria-current="true"]{background:var(--selected-bg)}
+.row[aria-current="true"] .row-title{color:var(--selected-fg)}
+.thumb{width:44px;height:56px;border:1px solid var(--border-card);border-radius:var(--r-sm);background:var(--surface-subtle) center/cover no-repeat}
+.row-title{font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-meta{font:12px/1.4 var(--font-mono);color:var(--text-secondary)}
+.pill{font:500 10px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;padding:5px 7px;border:1px solid var(--stone-200);background:var(--stone-075);color:var(--stone-700);white-space:nowrap}
+.pill.todo{border-color:var(--clay-200);background:var(--clay-050);color:var(--clay-600)}
+.pill.done{border-color:var(--stone-900);background:var(--stone-900);color:var(--paper)}
+.list-empty{padding:24px 16px;color:var(--text-secondary);font-size:13px}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer;transition:background 160ms,transform 120ms;white-space:nowrap}
+.btn:hover{background:var(--surface-subtle)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--action);border-color:var(--action);color:var(--on-action)}
+.btn.primary:hover{background:var(--action-hover)}
+.btn.primary:active{background:var(--action-pressed)}
+.btn.danger{color:var(--ox-700);border-color:var(--ox-200);background:var(--ox-050)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--surface-subtle)}
+.btn.icon{width:40px;padding:0}
+.btn[disabled]{opacity:.5;cursor:default}
+.btn svg,.ico{width:16px;height:16px;flex:none;opacity:.7}
+.btn.primary svg{opacity:1}
+:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+
+.main{overflow:auto;min-width:0;min-height:0}
+.main-inner{max-width:980px;margin:0 auto;padding-block:20px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.back{display:none}
+.head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.title-wrap{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:6px}
+.title-input{font-size:26px;line-height:1.15;font-weight:600;color:var(--text-primary);border:1px solid transparent;border-radius:var(--r-sm);background:transparent;padding:2px 6px;margin-left:-7px;width:100%}
+.title-input:hover{border-color:var(--border-card)}
+.title-input:focus{border-color:var(--action);outline:none;background:var(--surface-card)}
+.fields{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;background:var(--surface-subtle);border:1px solid var(--border-card);border-radius:var(--r-sm);padding:2px}
+.seg button{border:0;background:transparent;padding:0 12px;min-height:34px;border-radius:3px;font-size:13px;font-weight:500;color:var(--text-secondary);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--surface-card);color:var(--text-primary);box-shadow:0 1px 2px rgba(31,26,22,.08)}
+.field{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary)}
+.field input{border:1px solid var(--border-control);border-radius:var(--r-sm);background:var(--surface-card);min-height:36px;padding:0 8px;color:var(--text-primary);font-family:var(--font-mono);font-size:12px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.hint{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--text-secondary);background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--r-md);padding:10px 12px}
+.hint b{color:var(--text-primary);font-weight:600}
+
+.pages{display:flex;flex-direction:column;gap:20px}
+.page{background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--r-md);overflow:hidden}
+.page-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--border-divider);background:var(--surface-subtle);flex-wrap:wrap}
+.page-bar .eyebrow{color:var(--text-secondary)}
+.page-tools{display:flex;gap:4px;flex-wrap:wrap}
+.sheet{position:relative;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:text;background:#fff}
+.sheet img{display:block;width:100%;height:auto;pointer-events:none}
+.layer{position:absolute;inset:0}
+
+.ans{position:absolute;display:flex;align-items:flex-start;border:1.5px dashed transparent;border-radius:4px;transition:border-color 160ms,background 160ms}
+.ans:hover,.ans:focus-within{border-color:var(--ink-line);background:var(--ink-wash)}
+.ans.empty{border-color:var(--ink-line)}
+.ans textarea{display:block;flex:1;min-width:0;border:0;background:transparent;resize:none;overflow:hidden;color:var(--ink);font-family:var(--font-answer);font-weight:700;font-size:calc(var(--pw,800px) * var(--fs,.026));line-height:1.25;padding:.05em .2em;outline:none;user-select:text;-webkit-user-select:text;cursor:text}
+.ans textarea::placeholder{color:var(--ink-line);font-weight:400}
+.grip,.kill,.size{position:absolute;width:28px;height:28px;display:none;align-items:center;justify-content:center;border-radius:50%;border:1px solid var(--border-card);background:var(--surface-card);box-shadow:var(--shadow-md);color:var(--text-body);padding:0;cursor:pointer;touch-action:none}
+.grip{left:-14px;top:-14px;cursor:grab}
+.kill{right:-14px;top:-14px;color:var(--ox-700)}
+.size{right:-14px;bottom:-14px;cursor:ew-resize}
+.ans:focus-within .grip,.ans:focus-within .kill,.ans:focus-within .size,.ans.dragging .grip,.ans.dragging .size{display:flex}
+.grip svg,.kill svg,.size svg{width:14px;height:14px}
+@media (hover:hover){.ans:hover .grip,.ans:hover .kill,.ans:hover .size{display:flex}}
+
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:40px 20px;border:1.5px dashed var(--stone-250);border-radius:var(--r-md);background:var(--surface-card);color:var(--text-secondary)}
+.drop.over{border-color:var(--action);background:var(--selected-bg)}
+.drop h2{margin:0;font-size:17px;font-weight:600;color:var(--text-primary)}
+.drop p{margin:0;max-width:44ch}
+.drop .actions{justify-content:center}
+
+.confirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ox-700);background:var(--ox-050);border:1px solid var(--ox-200);border-radius:var(--r-md);padding:8px 10px}
+.confirm span{flex:1 1 200px}
+
+.welcome{max-width:560px;margin:10vh auto 0;display:flex;flex-direction:column;gap:14px;align-items:flex-start}
+.welcome h2{margin:0;font-size:26px;line-height:1.15;color:var(--text-primary);font-weight:600}
+.welcome p{margin:0;max-width:52ch}
+.steps{display:grid;gap:8px;margin:4px 0 8px;padding:0;list-style:none;counter-reset:s}
+.steps li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:baseline}
+.steps li::before{counter-increment:s;content:counter(s);font:500 12px var(--font-mono);color:var(--clay-600);background:var(--clay-050);border:1px solid var(--clay-200);width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--stone-900);color:var(--paper);padding:10px 14px;border-radius:var(--r-md);box-shadow:var(--shadow-md);font-size:13px;z-index:20;max-width:calc(100% - 32px)}
+.busy{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text-secondary)}
+.bar{flex:1;height:4px;background:var(--stone-100);border-radius:2px;overflow:hidden;max-width:240px}
+.bar i{display:block;height:100%;background:var(--action);width:0;transition:width 200ms}
+.vseg button{min-height:30px;padding:0 10px}
+.clean{padding:clamp(16px,4vw,40px);background:#fff;--wfs:21px}
+.clean[hidden],.sheet[hidden]{display:none}
+.ws{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px;font-family:var(--font-answer);font-size:var(--wfs);line-height:1.45;color:#1b1b1b}
+.ws-title{margin:0;font-size:1.45em;line-height:1.2;font-weight:700;text-wrap:balance;color:#111}
+.ws-instr{margin:0;font-size:.92em;color:#333}
+.ws-sec{display:flex;flex-direction:column;gap:14px;padding-top:6px;border-top:1px solid var(--border-divider)}
+.ws-sec:first-of-type{border-top:0;padding-top:0}
+.ws-sec h3{margin:0;font-size:1.08em;font-weight:700;color:#111}
+.ws-items{display:flex;flex-direction:column;gap:16px}
+.ws-items.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(7.5em,1fr));gap:24px 20px}
+.it{display:grid;grid-template-columns:2em minmax(0,1fr);gap:.4em;align-items:baseline}
+.it .lbl{font-weight:700;color:#444}
+.flow{display:flex;flex-wrap:wrap;align-items:baseline;gap:.3em .35em}
+.blank{font:700 1em/1.2 var(--font-answer);color:var(--ink);border:0;border-bottom:2px solid #444;background:var(--ink-wash);border-radius:3px 3px 0 0;padding:.1em .25em;min-width:2.2em;text-align:center}
+.blank.word{text-align:left}
+.blank.sentence{flex:1 1 12em;text-align:left}
+.blank:focus{outline:none;border-bottom-color:var(--action);background:var(--selected-bg)}
+.vert{display:inline-grid;justify-items:end;font-variant-numeric:tabular-nums;font-size:1.15em;line-height:1.3;min-width:4.2em}
+.vert .row2{display:flex;gap:.4em;width:100%;justify-content:space-between;border-bottom:2px solid #222;padding-bottom:.1em}
+.vert .blank{width:100%;text-align:right;margin-top:.2em;border-bottom:0;font-size:1em}
+.it-vert{grid-template-columns:auto;justify-items:start;gap:.1em}
+.prompt{margin:0 0 .3em}
+.lined{display:block;width:100%;font:700 1em/2em var(--font-answer);color:var(--ink);border:0;resize:vertical;padding:0 .3em;background:repeating-linear-gradient(transparent 0 calc(2em - 1px),#9fb3c4 calc(2em - 1px) 2em);background-attachment:local;min-height:4em}
+.lined:focus{outline:2px solid var(--action);outline-offset:4px}
+.opts{display:flex;flex-wrap:wrap;gap:.5em}
+.opt{font:inherit;font-size:.95em;border:2px solid #bbb;background:#fff;border-radius:999px;padding:.15em .8em;cursor:pointer;color:#222}
+.opt[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--ink-wash);font-weight:700}
+.bank{display:flex;flex-wrap:wrap;gap:.4em 1em;border:2px solid #333;border-radius:6px;padding:.5em .9em}
+.bank span{font-weight:700}
+.para{margin:0;max-width:62ch}
+.fig{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1.5px dashed #aaa;border-radius:6px;padding:.5em .8em;font-size:.85em;color:#555;font-family:var(--font-ui)}
+.gen{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:28px;font-size:14px;color:var(--text-body);font-family:var(--font-ui)}
+.gen .err{color:var(--ox-700)}
+.offline{margin:24px;padding:12px 14px;border:1px solid var(--ox-200);background:var(--ox-050);color:var(--ox-700);border-radius:var(--r-md);font-size:13px}
+
+@media (max-width:760px){
+  .app{grid-template-columns:1fr}
+  .app.detail .side{display:none}
+  .app:not(.detail) .main{display:none}
+  .back{display:inline-flex}
+  .title-input{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="app" id="app">
+  <aside class="side" aria-label="Assignments">
+    <div class="side-head">
+      <div class="brand"><span class="eyebrow">2nd grade</span><h1>Homework</h1></div>
+      <button class="btn primary" id="newBtn" type="button" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New
+      </button>
+    </div>
+    <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
+  </aside>
+  <main class="main" id="main">
+    <div class="main-inner" id="view">
+      <div class="welcome">
+        <span class="eyebrow">Homework</span>
+        <h2>Snap the worksheet, type the answers</h2>
+        <p>Each assignment holds its worksheet pages. Tap anywhere on a page to type an answer right where it goes.</p>
+        <ol class="steps">
+          <li>Press New and add photos or a PDF of the worksheet.</li>
+          <li>Tap next to a question and type the answer.</li>
+          <li>Mark it done when it's finished.</li>
+        </ol>
+      </div>
+    </div>
+  </main>
+</div>
+<input type="file" id="fileIn" accept="image/*,application/pdf" multiple hidden>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const SIZES = { s: .02, m: .026, l: .034 };
+const SUBJECTS = ['Math', 'Writing', 'Reading', 'Other'];
+const ICON = {
+  grip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  width: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 8l4 4-4 4M6 8l-4 4 4 4M2 12h20"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+  dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
+  add: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  wand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
+  cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
+};
+
+let db = null, assets = null, downloads = null, sample = null;
+let cleanMap = new Map();        // pageId -> {data, at}
+let typedMap = new Map();        // pageId -> {fieldId: value}
+let unsubClean = null, unsubTyped = null;
+const viewMode = new Map();      // pageId -> 'clean' | 'photo'
+const genState = new Map();      // pageId -> {ctl} | {error}
+const typedTimers = new Map();
+const WFS = { s: '18px', m: '21px', l: '25px' };
+let assignments = [];            // [{id, ...data}]
+let currentId = null;
+let answers = new Map();         // id -> data, for current assignment
+let unsubAnswers = null;
+let pendingDelete = null;        // 'assignment' | pageIndex
+const saveTimers = new Map();
+const localBoxes = new Set();    // ids created locally but not yet saved
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.hidden = true, 2600);
+}
+const cur = () => assignments.find(a => a.id === currentId);
+function fmtDate(ms) { return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+function fmtDue(s) { if (!s) return ''; const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }); }
+
+/* ---------- boot ---------- */
+async function boot() {
+  try { db = await window.claude?.use?.('db'); } catch { db = null; }
+  if (!db) {
+    $('#list').innerHTML = '';
+    $('#view').innerHTML = '<div class="offline">Saved assignments can\'t load in this view. Open the page from claude.ai while signed in to see and save homework.</div>';
+    return;
+  }
+  try { assets = await claude.use('assets'); } catch { assets = null; }
+  claude.use('downloads').then(d => downloads = d).catch(() => {});
+  try {
+    const sm = await claude.use('sample');
+    const lim = sm ? await sm.limits().catch(() => null) : null;
+    sample = lim?.images ? sm : null;
+  } catch { sample = null; }
+  $('#newBtn').disabled = !assets;
+  db.collection('assignments').orderBy('createdAt', 'desc').onSnapshot(snap => {
+    assignments = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderList();
+    if (!currentId) {
+      let last = null; try { last = localStorage.getItem('hw:last'); } catch {}
+      if (last && assignments.some(a => a.id === last) && window.innerWidth > 760) open(last);
+    } else if (!cur()) { currentId = null; renderWelcome(); }
+    else renderHeaderOnly();
+  }, e => toast('Could not load assignments (' + e.code + ')'));
+}
+
+/* ---------- list ---------- */
+function renderList() {
+  const el = $('#list');
+  if (!assignments.length) { el.innerHTML = '<div class="list-empty">No assignments yet. Press New to add the first worksheet.</div>'; return; }
+  el.innerHTML = assignments.map(a => {
+    const p = a.pages || [];
+    const thumb = p[0] ? `style="background-image:url('/_blob/${esc(p[0].id)}')"` : '';
+    const meta = [a.subject, a.due ? 'Due ' + fmtDue(a.due) : fmtDate(a.createdAt), p.length + (p.length === 1 ? ' page' : ' pages')].filter(Boolean).join(' · ');
+    return `<button class="row" type="button" data-id="${esc(a.id)}" aria-current="${a.id === currentId}">
+      <span class="thumb" ${thumb}></span>
+      <span style="min-width:0"><div class="row-title">${esc(a.title || 'Untitled')}</div><div class="row-meta">${esc(meta)}</div></span>
+      <span class="pill ${a.done ? 'done' : 'todo'}">${a.done ? 'Done' : 'To do'}</span></button>`;
+  }).join('');
+}
+$('#list').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) open(r.dataset.id); });
+
+function renderWelcome() {
+  $('#app').classList.remove('detail');
+  $('#view').innerHTML = `<div class="welcome"><span class="eyebrow">Homework</span><h2>Pick an assignment</h2><p>Choose one on the left, or press New to add a worksheet.</p></div>`;
+}
+
+/* ---------- new ---------- */
+$('#newBtn').addEventListener('click', async () => {
+  const id = uid();
+  const now = Date.now();
+  const title = 'Homework ' + new Date(now).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  try {
+    await db.doc('assignments/' + id).set({ title, subject: 'Math', due: '', done: false, size: 'm', pages: [], createdAt: now });
+    open(id, true);
+  } catch (e) { toast('Could not create the assignment (' + (e.code || 'error') + ')'); }
+});
+
+/* ---------- open / detail ---------- */
+function open(id, pick) {
+  if (currentId !== id) {
+    currentId = id; pendingDelete = null;
+    try { localStorage.setItem('hw:last', id); } catch {}
+    if (unsubAnswers) unsubAnswers();
+    answers = new Map(); localBoxes.clear();
+    unsubAnswers = db.collection('answers').where('a', '==', id).onSnapshot(snap => {
+      answers = new Map(snap.docs.map(d => [d.id, d.data()]));
+      syncBoxes();
+    }, e => toast('Answers did not load (' + e.code + ')'));
+    if (unsubClean) unsubClean(); if (unsubTyped) unsubTyped();
+    cleanMap = new Map(); typedMap = new Map();
+    unsubClean = db.collection('clean').where('a', '==', id).onSnapshot(snap => {
+      cleanMap = new Map(snap.docs.map(d => [d.data().p, d.data()]));
+      document.querySelectorAll('.page').forEach(refreshPage);
+    }, e => toast('Clean copies did not load (' + e.code + ')'));
+    unsubTyped = db.collection('typed').where('a', '==', id).onSnapshot(snap => {
+      for (const d of snap.docs) {
+        const v = d.data();
+        if (typedTimers.has(v.p)) continue;            // our own edit is pending
+        typedMap.set(v.p, { ...(v.v || {}) });
+      }
+      document.querySelectorAll('.page').forEach(sec => fillTyped(sec));
+    }, e => toast('Typed answers did not load (' + e.code + ')'));
+  }
+  $('#app').classList.add('detail');
+  renderList();
+  renderDetail();
+  if (pick && assets) setTimeout(() => $('#fileIn').click(), 50);
+}
+
+function headerHTML(a) {
+  return `
+  <button class="btn ghost back" type="button" id="backBtn">${ICON.back}All assignments</button>
+  <div class="head">
+    <div class="title-wrap">
+      <label class="eyebrow" for="titleIn">Assignment</label>
+      <input class="title-input" id="titleIn" value="${esc(a.title)}" autocomplete="off">
+      <div class="fields">
+        <div class="seg" role="group" aria-label="Subject">${SUBJECTS.map(s => `<button type="button" data-subj="${s}" aria-pressed="${a.subject === s}">${s}</button>`).join('')}</div>
+        <label class="field" for="dueIn">Due <input type="date" id="dueIn" value="${esc(a.due || '')}"></label>
+      </div>
+    </div>
+    <div class="actions">
+      <div class="seg" role="group" aria-label="Answer text size">${['s','m','l'].map(k => `<button type="button" data-size="${k}" aria-pressed="${(a.size||'m') === k}" aria-label="Text size ${k}">${{s:'A',m:'A+',l:'A++'}[k]}</button>`).join('')}</div>
+      ${sample && assets ? `<button class="btn" type="button" id="cleanAllBtn">${ICON.wand}Clean copies</button>` : ''}
+      ${assets ? `<button class="btn" type="button" id="addPagesBtn">${ICON.cam}Add pages</button>` : ''}
+      <button class="btn ${a.done ? '' : 'primary'}" type="button" id="doneBtn">${ICON.check}${a.done ? 'Mark not done' : 'Mark done'}</button>
+      <button class="btn icon ghost" type="button" id="delBtn" aria-label="Delete assignment">${ICON.trash}</button>
+    </div>
+  </div>
+  <div id="confirmSlot"></div>`;
+}
+
+function renderHeaderOnly() {
+  const a = cur(); if (!a) return;
+  const slot = $('#headSlot'); if (!slot) return;
+  // keep title focus
+  const t = $('#titleIn'); const focused = document.activeElement === t;
+  if (!focused) t.value = a.title || '';
+  $('#dueIn').value = a.due || '';
+  document.querySelectorAll('[data-subj]').forEach(b => b.setAttribute('aria-pressed', a.subject === b.dataset.subj));
+  document.querySelectorAll('[data-size]').forEach(b => b.setAttribute('aria-pressed', (a.size||'m') === b.dataset.size));
+  const d = $('#doneBtn'); d.className = 'btn ' + (a.done ? '' : 'primary'); d.innerHTML = ICON.check + (a.done ? 'Mark not done' : 'Mark done');
+  document.querySelectorAll('.sheet').forEach(s => s.style.setProperty('--fs', SIZES[a.size || 'm']));
+  document.querySelectorAll('.clean').forEach(s => s.style.setProperty('--wfs', WFS[a.size || 'm']));
+  // pages changed?
+  const sig = (a.pages || []).map(p => p.id).join(',');
+  if (sig !== $('#pages').dataset.sig) renderPages();
+}
+
+function renderDetail() {
+  const a = cur(); if (!a) return renderWelcome();
+  $('#view').innerHTML = `<div id="headSlot">${headerHTML(a)}</div><div id="busySlot"></div><div class="pages" id="pages"></div>`;
+  wireHeader();
+  renderPages();
+  $('#main').scrollTop = 0;
+}
+
+function update(fields) {
+  return db.doc('assignments/' + currentId).update(fields).catch(e => toast('Not saved (' + (e.code || 'error') + ')'));
+}
+
+function wireHeader() {
+  $('#backBtn').onclick = () => { $('#app').classList.remove('detail'); };
+  let tt;
+  $('#titleIn').oninput = e => { clearTimeout(tt); const v = e.target.value; tt = setTimeout(() => update({ title: v.trim() || 'Untitled' }), 500); };
+  $('#titleIn').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
+  $('#dueIn').onchange = e => update({ due: e.target.value });
+  document.querySelectorAll('[data-subj]').forEach(b => b.onclick = () => update({ subject: b.dataset.subj }));
+  document.querySelectorAll('[data-size]').forEach(b => b.onclick = () => update({ size: b.dataset.size }));
+  $('#doneBtn').onclick = () => update({ done: !cur().done });
+  if ($('#cleanAllBtn')) $('#cleanAllBtn').onclick = cleanAll;
+  if ($('#addPagesBtn')) $('#addPagesBtn').onclick = () => $('#fileIn').click();
+  $('#delBtn').onclick = () => { pendingDelete = 'assignment'; renderConfirm(); };
+}
+
+function renderConfirm() {
+  const slot = $('#confirmSlot'); if (!slot) return;
+  if (pendingDelete !== 'assignment') { slot.innerHTML = ''; return; }
+  slot.innerHTML = `<div class="confirm"><span>Delete this assignment, its pages and every typed answer? This can't be undone.</span>
+    <button class="btn" type="button" id="cancelDel">Keep it</button><button class="btn danger" type="button" id="okDel">Delete</button></div>`;
+  $('#cancelDel').onclick = () => { pendingDelete = null; renderConfirm(); };
+  $('#okDel').onclick = deleteAssignment;
+}
+
+async function deleteAssignment() {
+  const a = cur(); if (!a) return;
+  const id = a.id;
+  try {
+    for (const [aid] of answers) await db.doc('answers/' + aid).delete();
+    for (const p of a.pages || []) { db.doc('clean/' + p.id).delete().catch(() => {}); db.doc('typed/' + p.id).delete().catch(() => {}); }
+    if (unsubClean) unsubClean(); if (unsubTyped) unsubTyped(); unsubClean = unsubTyped = null;
+    await db.doc('assignments/' + id).delete();
+    for (const p of a.pages || []) assets?.delete(p.id).catch(() => {});
+    if (unsubAnswers) unsubAnswers(); unsubAnswers = null;
+    currentId = null; pendingDelete = null; renderWelcome(); renderList();
+    toast('Assignment deleted');
+  } catch (e) { toast('Could not delete (' + (e.code || 'error') + ')'); }
+}
+
+/* ---------- pages ---------- */
+const ro = new ResizeObserver(entries => { for (const en of entries) en.target.style.setProperty('--pw', en.contentRect.width + 'px'); });
+
+function renderPages() {
+  const a = cur(); const el = $('#pages'); if (!a || !el) return;
+  const pages = a.pages || [];
+  el.dataset.sig = pages.map(p => p.id).join(',');
+  ro.disconnect();
+  if (!pages.length) {
+    el.innerHTML = `<div class="drop" id="drop">
+      <h2>Add the worksheet</h2>
+      <p>Take a photo of each page, or pick a PDF. Every page of a PDF comes in as its own page. You can also drag files here.</p>
+      ${assets ? `<div class="actions"><button class="btn primary" type="button" id="dropPick">${ICON.cam}Add photos or PDF</button></div>` : '<p>Only people who can edit this page can add pages.</p>'}
+    </div>`;
+    if ($('#dropPick')) $('#dropPick').onclick = () => $('#fileIn').click();
+    wireDrop($('#drop'));
+    return;
+  }
+  el.innerHTML = `<div class="hint">${ICON.add.replace('aria-hidden', 'class="ico" aria-hidden')}<span>${sample ? '<b>Clean copy</b> rebuilds a messy photo as a tidy worksheet with boxes to type in. ' : ''}On the <b>photo</b>, tap anywhere to type an answer right there.</span></div>` +
+    pages.map((p, i) => `<section class="page" data-page="${esc(p.id)}" aria-label="Page ${i + 1}">
+      <div class="page-bar"><span class="eyebrow">Page ${i + 1} of ${pages.length}<span class="prog"></span></span>
+        <div class="page-tools"><span class="vtools" style="display:contents"></span>
+          ${downloads ? `<button class="btn ghost" type="button" data-act="dl" data-i="${i}">${ICON.dl}Save image</button>` : ''}
+          ${i > 0 ? `<button class="btn ghost icon" type="button" data-act="up" data-i="${i}" aria-label="Move page up">${ICON.up}</button>` : ''}
+          <button class="btn ghost icon" type="button" data-act="rm" data-i="${i}" aria-label="Remove page">${ICON.trash}</button>
+        </div></div>
+      <div class="pconfirm"></div>
+      <div class="clean" style="--wfs:${WFS[a.size || 'm']}" hidden></div>
+      <div class="sheet" style="--fs:${SIZES[a.size || 'm']}"><img src="/_blob/${esc(p.id)}" alt="Worksheet page ${i + 1}" width="${p.w}" height="${p.h}"><div class="layer"></div></div>
+    </section>`).join('') +
+    (assets ? `<div class="drop" id="drop" style="padding:24px"><div class="actions"><button class="btn" type="button" id="dropPick">${ICON.cam}Add more pages</button></div></div>` : '');
+  if ($('#dropPick')) $('#dropPick').onclick = () => $('#fileIn').click();
+  if ($('#drop')) wireDrop($('#drop'));
+  el.querySelectorAll('.sheet').forEach(s => { ro.observe(s); s.addEventListener('click', onSheetClick); });
+  el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => pageAction(b.dataset.act, +b.dataset.i, b));
+  el.querySelectorAll('.page').forEach(refreshPage);
+  syncBoxes();
+}
+
+async function pageAction(act, i, btn) {
+  const a = cur(); const pages = [...(a.pages || [])];
+  if (act === 'up') { [pages[i - 1], pages[i]] = [pages[i], pages[i - 1]]; return update({ pages }); }
+  if (act === 'dl') return savePageImage(i);
+  if (act === 'rm') {
+    const slot = btn.closest('.page').querySelector('.pconfirm');
+    slot.innerHTML = `<div class="confirm" style="margin:8px;border-radius:var(--r-sm)"><span>Remove page ${i + 1} and its answers?</span>
+      <button class="btn" type="button">Keep</button><button class="btn danger" type="button">Remove</button></div>`;
+    const [keep, rm] = slot.querySelectorAll('button');
+    keep.onclick = () => slot.innerHTML = '';
+    rm.onclick = async () => {
+      const p = pages[i];
+      for (const [aid, d] of answers) if (d.p === p.id) db.doc('answers/' + aid).delete().catch(() => {});
+      db.doc('clean/' + p.id).delete().catch(() => {}); db.doc('typed/' + p.id).delete().catch(() => {});
+      pages.splice(i, 1);
+      await update({ pages });
+      assets?.delete(p.id).catch(() => {});
+    };
+  }
+}
+
+/* ---------- clean copy ---------- */
+const CLEAN_PROMPT = `The image is a photo or scan of a 2nd-grade homework worksheet. It may be crooked, shadowed, wrinkled or partly cut off.
+Rebuild it as clean structured data so a child can type the answers on screen.
+
+Rules:
+- Copy every printed word, number and symbol exactly as on the sheet, in reading order. Keep the sheet's own numbering ("1.", "a)").
+- Do NOT solve anything. Ignore pencil marks or answers already written by hand: leave those spots as blanks.
+- Every place the child must write something becomes a blank. Blank kinds: "number" (a digit answer), "word" (one or a few words), "sentence" (a full line).
+- Pictures the child needs (counting objects, clocks, shapes, number lines, coins) become a "figure" item with a short plain description, followed by the question as normal items.
+- If a part is unreadable, write [unreadable] in that spot instead of guessing.
+- Name/date lines at the top: leave them out.
+
+Reply with ONLY one JSON object of this shape:
+{"title": string, "instructions": string|null,
+ "sections": [{"heading": string|null, "instructions": string|null, "items": [ITEM, ...]}]}
+
+ITEM is one of:
+{"type":"line","label":"1.","parts":["7 + 5 =", {"blank":"number"}]}            (horizontal math, fill-in sentences, compare "34 ( ) 43" -> parts with a blank)
+{"type":"vertical","label":"2.","rows":["34","25"],"op":"+"}                     (stacked math problem; the answer blank goes under the line)
+{"type":"write","label":"3.","prompt":"Write two sentences about your weekend.","lines":3}
+{"type":"choice","label":"4.","prompt":"Which word is a noun?","options":["run","dog","blue"]}
+{"type":"wordbank","words":["cat","hat","sat"]}
+{"type":"text","text":"A reading passage or note, copied exactly."}
+{"type":"figure","description":"A picture of 3 red apples and 4 green apples."}
+
+Example: a row of six stacked addition problems is one section whose items are six "vertical" items.`;
+
+function cleanMode(pid) { return viewMode.get(pid) || (cleanMap.has(pid) ? 'clean' : 'photo'); }
+
+function refreshPage(sec) {
+  const pid = sec.dataset.page; const i = (cur()?.pages || []).findIndex(p => p.id === pid);
+  const has = cleanMap.has(pid), g = genState.get(pid), mode = cleanMode(pid);
+  const vt = sec.querySelector('.vtools');
+  let h = '';
+  if (has) h += `<div class="seg vseg" role="group" aria-label="View"><button type="button" data-v="clean" aria-pressed="${mode === 'clean'}">Clean copy</button><button type="button" data-v="photo" aria-pressed="${mode === 'photo'}">Photo</button></div>`;
+  if (sample && assets && !g?.ctl) h += `<button class="btn ghost" type="button" data-gen>${ICON.wand}${has ? 'Redo' : 'Make clean copy'}</button>`;
+  vt.innerHTML = h;
+  vt.querySelectorAll('[data-v]').forEach(b => b.onclick = () => { viewMode.set(pid, b.dataset.v); refreshPage(sec); });
+  const gb = vt.querySelector('[data-gen]'); if (gb) gb.onclick = () => has ? confirmRedo(sec) : makeClean(pid);
+  const dl = sec.querySelector('[data-act="dl"]'); if (dl) dl.hidden = mode === 'clean' && !g;
+
+  const box = sec.querySelector('.clean'), sheet = sec.querySelector('.sheet');
+  const showClean = mode === 'clean' || !!g;
+  box.hidden = !showClean; sheet.hidden = showClean;
+  if (g?.ctl) {
+    box.dataset.at = '';
+    box.innerHTML = `<div class="gen"><b>Reading the worksheet…</b><span>This usually takes 20–60 seconds.</span><button class="btn" type="button">Stop</button></div>`;
+    box.querySelector('button').onclick = () => g.ctl.abort();
+  } else if (g?.error) {
+    box.dataset.at = '';
+    box.innerHTML = `<div class="gen"><span class="err">${esc(g.error)}</span><div class="actions"><button class="btn primary" type="button" data-r>Try again</button><button class="btn" type="button" data-p>Back to photo</button></div></div>`;
+    box.querySelector('[data-r]').onclick = () => makeClean(pid);
+    box.querySelector('[data-p]').onclick = () => { genState.delete(pid); viewMode.set(pid, 'photo'); refreshPage(sec); };
+  } else if (has && String(cleanMap.get(pid).at) !== box.dataset.at) {
+    box.dataset.at = String(cleanMap.get(pid).at);
+    box.innerHTML = renderWorksheet(cleanMap.get(pid).data, pid);
+    wireWorksheet(box, pid);
+    fillTyped(sec);
+  }
+  updateProgress(sec);
+}
+
+function confirmRedo(sec) {
+  const slot = sec.querySelector('.pconfirm');
+  slot.innerHTML = `<div class="confirm" style="margin:8px;border-radius:var(--r-sm)"><span>Rebuild the clean copy from the photo? Answers typed on the clean copy will be cleared.</span>
+    <button class="btn" type="button">Keep it</button><button class="btn danger" type="button">Rebuild</button></div>`;
+  const [k, r] = slot.querySelectorAll('button');
+  k.onclick = () => slot.innerHTML = '';
+  r.onclick = () => { slot.innerHTML = ''; makeClean(sec.dataset.page, true); };
+}
+
+async function makeClean(pid, clearTyped) {
+  if (!sample || genState.get(pid)?.ctl) return;
+  const aid = currentId;
+  const ctl = new AbortController();
+  genState.set(pid, { ctl });
+  const sec = () => document.querySelector(`.page[data-page="${pid}"]`);
+  if (sec()) refreshPage(sec());
+  try {
+    const img = await (await fetch('/_blob/' + pid)).blob();
+    const data = await sample.json(CLEAN_PROMPT, { images: [img], signal: ctl.signal, cache: false });
+    if (!data || !Array.isArray(data.sections) || !data.sections.length) throw { code: 'empty' };
+    genState.delete(pid);
+    if (clearTyped) { typedMap.delete(pid); db.doc('typed/' + pid).delete().catch(() => {}); }
+    viewMode.set(pid, 'clean');
+    await db.doc('clean/' + pid).set({ a: aid, p: pid, data, at: Date.now() });
+  } catch (e) {
+    const msg = {
+      cancelled: null,
+      not_granted: 'The clean copy needs permission to ask Claude. Press Try again and allow it.',
+      rate_limited: 'Too many requests at once. Wait a minute, then try again.',
+      invalid_json: 'The worksheet came back in a shape the page could not read. Try again.',
+      empty: 'No questions were found on this page. A sharper, straighter photo usually helps.',
+    }[e?.code];
+    if (e?.code === 'cancelled') genState.delete(pid);
+    else genState.set(pid, { error: msg || 'The clean copy did not finish (' + (e?.code || 'error') + '). Try again.' });
+  }
+  if (sec()) refreshPage(sec());
+}
+
+async function cleanAll() {
+  const pages = (cur()?.pages || []).filter(p => !cleanMap.has(p.id));
+  if (!pages.length) return toast('Every page already has a clean copy.');
+  for (const p of pages) { if (currentId) await makeClean(p.id); }
+}
+
+function renderWorksheet(d, pid) {
+  let n = 0;
+  const T = s => esc(s ?? '');
+  const blank = (b) => {
+    const kind = ['number', 'word', 'sentence'].includes(b?.blank) ? b.blank : 'word';
+    const id = 'b' + (n++);
+    return `<input class="blank ${kind}" data-f="${id}" autocomplete="off" spellcheck="false" ${kind === 'number' ? 'inputmode="numeric" size="3"' : kind === 'word' ? 'size="8"' : ''} aria-label="Answer">`;
+  };
+  const lbl = it => `<span class="lbl">${T(it.label)}</span>`;
+  const item = it => {
+    switch (it?.type) {
+      case 'line': return `<div class="it">${lbl(it)}<span class="flow">${(it.parts || []).map(p => typeof p === 'string' ? `<span>${T(p)}</span>` : blank(p)).join('')}</span></div>`;
+      case 'vertical': {
+        const rows = (it.rows || []).map(String); const last = rows.pop() ?? '';
+        return `<div class="it it-vert">${lbl(it)}<div class="vert">${rows.map(r => `<div>${T(r)}</div>`).join('')}<div class="row2"><span>${T(it.op)}</span><span>${T(last)}</span></div>${blank({ blank: 'number' })}</div></div>`;
+      }
+      case 'write': { const id = 'w' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><textarea class="lined" data-f="${id}" rows="${Math.max(2, Math.min(12, +it.lines || 3))}" aria-label="Writing answer"></textarea></div></div>`; }
+      case 'choice': { const id = 'c' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts" data-f="${id}" role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'wordbank': return `<div class="bank" aria-label="Word bank">${(it.words || []).map(w => `<span>${T(w)}</span>`).join('')}</div>`;
+      case 'text': return `<p class="para">${T(it.text)}</p>`;
+      case 'figure': return `<div class="fig"><span>Picture on the worksheet: ${T(it.description)}</span><button class="btn" type="button" data-show-photo>Show photo</button></div>`;
+      default: return it?.text ? `<p class="para">${T(it.text)}</p>` : '';
+    }
+  };
+  return `<div class="ws">
+    ${d.title ? `<h2 class="ws-title">${T(d.title)}</h2>` : ''}
+    ${d.instructions ? `<p class="ws-instr">${T(d.instructions)}</p>` : ''}
+    ${(d.sections || []).map(s => {
+      const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
+      return `<section class="ws-sec">${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${s.instructions ? `<p class="ws-instr">${T(s.instructions)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${items.map(item).join('')}</div></section>`;
+    }).join('')}
+  </div>`;
+}
+
+function wireWorksheet(box, pid) {
+  const sec = box.closest('.page');
+  box.querySelectorAll('input[data-f],textarea[data-f]').forEach(el => el.addEventListener('input', () => setTyped(pid, el.dataset.f, el.value, sec)));
+  box.querySelectorAll('.opts').forEach(g => g.querySelectorAll('.opt').forEach(b => b.onclick = () => {
+    const now = b.getAttribute('aria-pressed') === 'true' ? '' : b.dataset.k;
+    g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === now));
+    setTyped(pid, g.dataset.f, now, sec);
+  }));
+  box.querySelectorAll('[data-show-photo]').forEach(b => b.onclick = () => { viewMode.set(pid, 'photo'); refreshPage(sec); });
+}
+
+function setTyped(pid, f, v, sec) {
+  const vals = typedMap.get(pid) || {}; vals[f] = v; typedMap.set(pid, vals);
+  updateProgress(sec);
+  clearTimeout(typedTimers.get(pid));
+  const aid = currentId;
+  typedTimers.set(pid, setTimeout(async () => {
+    try { await db.doc('typed/' + pid).set({ a: aid, p: pid, v: typedMap.get(pid) || {}, at: Date.now() }); }
+    catch (e) { toast('Answer not saved (' + (e.code || 'error') + ')'); }
+    typedTimers.delete(pid);
+  }, 500));
+}
+
+function fillTyped(sec) {
+  const vals = typedMap.get(sec.dataset.page) || {};
+  sec.querySelectorAll('.clean input[data-f], .clean textarea[data-f]').forEach(el => { if (document.activeElement !== el && el.value !== (vals[el.dataset.f] || '')) el.value = vals[el.dataset.f] || ''; });
+  sec.querySelectorAll('.clean .opts').forEach(g => g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === String(vals[g.dataset.f] ?? ''))));
+  updateProgress(sec);
+}
+
+function updateProgress(sec) {
+  const pr = sec.querySelector('.prog'); if (!pr) return;
+  const box = sec.querySelector('.clean');
+  if (box.hidden || !cleanMap.has(sec.dataset.page)) { pr.textContent = ''; return; }
+  const fields = box.querySelectorAll('[data-f]'); const vals = typedMap.get(sec.dataset.page) || {};
+  const done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
+  pr.textContent = fields.length ? ` · ${done} of ${fields.length} answered` : '';
+}
+
+/* ---------- uploads ---------- */
+function wireDrop(el) {
+  if (!el || !assets) return;
+  el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('over'); });
+  el.addEventListener('dragleave', () => el.classList.remove('over'));
+  el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); addFiles([...e.dataTransfer.files]); });
+}
+$('#fileIn').addEventListener('change', e => { const f = [...e.target.files]; e.target.value = ''; if (f.length) addFiles(f); });
+document.addEventListener('paste', e => {
+  if (!currentId || !assets) return;
+  const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/') || x.type === 'application/pdf');
+  if (f.length) { e.preventDefault(); addFiles(f); }
+});
+
+function setBusy(text, frac) {
+  const s = $('#busySlot'); if (!s) return;
+  if (text == null) { s.innerHTML = ''; return; }
+  s.innerHTML = `<div class="busy"><span>${esc(text)}</span><span class="bar"><i style="width:${Math.round((frac || 0) * 100)}%"></i></span></div>`;
+}
+
+let pdfReady = null;
+function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+function loadPdf() {
+  if (!pdfReady) pdfReady = (async () => {
+    const base = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+    await loadScript(base + 'pdf.min.js');
+    await loadScript(base + 'pdf.worker.min.js');   // runs pdf.js on the page itself
+    return window.pdfjsLib;
+  })();
+  return pdfReady;
+}
+
+function canvasToBlob(c) { return new Promise(r => c.toBlob(r, 'image/jpeg', .86)); }
+async function imageFileToCanvas(file) {
+  const MAX = 2000;
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch {
+    bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  }
+  const w0 = bmp.width, h0 = bmp.height, k = Math.min(1, MAX / Math.max(w0, h0));
+  const c = document.createElement('canvas'); c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+  return c;
+}
+
+async function addFiles(files) {
+  if (!assets) return toast('Only people who can edit this page can add pages.');
+  const id = currentId;
+  const added = [];
+  let jobs = [];
+  for (const f of files) {
+    if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) jobs.push({ pdf: f });
+    else if (f.type.startsWith('image/') || /\.(jpe?g|png|heic|webp|gif)$/i.test(f.name)) jobs.push({ img: f });
+  }
+  if (!jobs.length) return toast('Pick photos or a PDF.');
+  try {
+    // expand PDFs to per-page jobs
+    const flat = [];
+    for (const j of jobs) {
+      if (j.img) { flat.push(j); continue; }
+      setBusy('Opening PDF…', 0);
+      const lib = await loadPdf();
+      const doc = await lib.getDocument({ data: await j.pdf.arrayBuffer() }).promise;
+      for (let n = 1; n <= doc.numPages; n++) flat.push({ pdfDoc: doc, n });
+    }
+    for (let k = 0; k < flat.length; k++) {
+      setBusy(`Adding page ${k + 1} of ${flat.length}…`, k / flat.length);
+      const j = flat[k];
+      let c;
+      if (j.img) c = await imageFileToCanvas(j.img);
+      else {
+        const page = await j.pdfDoc.getPage(j.n);
+        const vp1 = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: Math.min(3, 1700 / vp1.width) });
+        c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: g, viewport: vp }).promise;
+      }
+      const blob = await canvasToBlob(c);
+      const r = await assets.upload(blob, { type: 'image/jpeg' });
+      added.push({ id: r.id, w: c.width, h: c.height });
+    }
+    const a = assignments.find(x => x.id === id);
+    await db.doc('assignments/' + id).update({ pages: [...(a?.pages || []), ...added] });
+    setBusy(null);
+    toast(added.length === 1 ? 'Page added' : added.length + ' pages added');
+    if (sample) (async () => { for (const p of added) if (currentId === id) await makeClean(p.id); })();
+  } catch (e) {
+    setBusy(null);
+    if (added.length) { const a = assignments.find(x => x.id === id); db.doc('assignments/' + id).update({ pages: [...(a?.pages || []), ...added] }).catch(() => {}); }
+    toast('Some pages did not upload (' + (e?.code || e?.message || 'error') + ')');
+  }
+}
+
+/* ---------- answer boxes ---------- */
+function onSheetClick(e) {
+  if (e.target.closest('.ans')) return;
+  const sheet = e.currentTarget;
+  const r = sheet.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width * 100, y = (e.clientY - r.top) / r.height * 100;
+  const fsPx = parseFloat(getComputedStyle(sheet).getPropertyValue('--fs')) * r.width;
+  const yAdj = Math.max(0, y - (fsPx * .7) / r.height * 100);
+  const pageId = sheet.closest('.page').dataset.page;
+  const id = uid();
+  localBoxes.add(id);
+  answers.set(id, { a: currentId, p: pageId, x: Math.min(x, 92), y: yAdj, w: Math.min(30, 100 - Math.min(x, 92)), t: '', local: true });
+  syncBoxes();
+  const ta = document.querySelector(`.ans[data-id="${id}"] textarea`); ta?.focus();
+}
+
+function boxEl(id) {
+  const el = document.createElement('div');
+  el.className = 'ans'; el.dataset.id = id;
+  el.innerHTML = `<button class="grip" type="button" aria-label="Move answer">${ICON.grip}</button>
+    <textarea rows="1" spellcheck="false" autocapitalize="sentences" placeholder="Type…" aria-label="Answer"></textarea>
+    <button class="kill" type="button" aria-label="Delete answer">${ICON.x}</button>
+    <button class="size" type="button" aria-label="Make wider or narrower">${ICON.width}</button>`;
+  const ta = el.querySelector('textarea');
+  ta.addEventListener('input', () => { fit(ta); el.classList.toggle('empty', !ta.value); queueSave(id, { t: ta.value }); });
+  ta.addEventListener('blur', () => setTimeout(() => {
+    if (el.contains(document.activeElement)) return;
+    if (!ta.value.trim()) removeBox(id);
+  }, 150));
+  el.querySelector('.kill').addEventListener('pointerdown', e => e.preventDefault());
+  el.querySelector('.kill').onclick = () => removeBox(id);
+  dragger(el.querySelector('.grip'), el, id, 'move');
+  dragger(el.querySelector('.size'), el, id, 'size');
+  return el;
+}
+function fit(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+
+function dragger(handle, el, id, mode) {
+  handle.addEventListener('pointerdown', e => {
+    e.preventDefault(); e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    const sheet = el.closest('.sheet'); const r = sheet.getBoundingClientRect();
+    const d = answers.get(id); const start = { x: e.clientX, y: e.clientY, bx: d.x, by: d.y, bw: d.w };
+    el.classList.add('dragging');
+    const move = ev => {
+      const dx = (ev.clientX - start.x) / r.width * 100, dy = (ev.clientY - start.y) / r.height * 100;
+      if (mode === 'move') { d.x = Math.max(0, Math.min(98 - d.w, start.bx + dx)); d.y = Math.max(0, Math.min(97, start.by + dy)); }
+      else d.w = Math.max(6, Math.min(100 - d.x, start.bw + dx));
+      place(el, d); fit(el.querySelector('textarea'));
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
+      el.classList.remove('dragging');
+      queueSave(id, { x: d.x, y: d.y, w: d.w }, 0);
+      el.querySelector('textarea').focus();
+    };
+    handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up); handle.addEventListener('pointercancel', up);
+  });
+}
+
+function place(el, d) { el.style.left = d.x + '%'; el.style.top = d.y + '%'; el.style.width = d.w + '%'; }
+
+function queueSave(id, fields, delay = 450) {
+  const d = answers.get(id); if (!d) return;
+  Object.assign(d, fields);
+  clearTimeout(saveTimers.get(id));
+  saveTimers.set(id, setTimeout(async () => {
+    try {
+      if (localBoxes.has(id)) {
+        if (!d.t || !d.t.trim()) return;
+        localBoxes.delete(id);
+        const { local, ...body } = d;
+        await db.doc('answers/' + id).set({ ...body, at: Date.now() });
+      } else {
+        await db.doc('answers/' + id).update({ ...fields, at: Date.now() });
+      }
+    } catch (e) { toast('Answer not saved (' + (e.code || 'error') + ')'); }
+  }, delay));
+}
+
+function removeBox(id) {
+  clearTimeout(saveTimers.get(id));
+  const wasLocal = localBoxes.has(id);
+  localBoxes.delete(id); answers.delete(id);
+  document.querySelector(`.ans[data-id="${id}"]`)?.remove();
+  if (!wasLocal) db.doc('answers/' + id).delete().catch(() => {});
+}
+
+function syncBoxes() {
+  // snapshots replace the map: carry boxes typed here but not yet saved
+  for (const id of localBoxes) {
+    if (answers.has(id)) continue;
+    const el = document.querySelector(`.ans[data-id="${id}"]`);
+    if (el) answers.set(id, { a: currentId, p: el.closest('.page')?.dataset.page, x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0, w: parseFloat(el.style.width) || 30, t: el.querySelector('textarea').value, local: true });
+  }
+  const sheets = new Map([...document.querySelectorAll('.page')].map(p => [p.dataset.page, p.querySelector('.layer')]));
+  const seen = new Set();
+  for (const [id, d] of answers) {
+    const layer = sheets.get(d.p); if (!layer) continue;
+    seen.add(id);
+    let el = layer.querySelector(`.ans[data-id="${id}"]`);
+    if (!el) { el = boxEl(id); layer.appendChild(el); }
+    const ta = el.querySelector('textarea');
+    const editing = el.contains(document.activeElement) || el.classList.contains('dragging');
+    if (!editing) { place(el, d); if (ta.value !== (d.t || '')) ta.value = d.t || ''; }
+    else if (!el.style.left) place(el, d);
+    el.classList.toggle('empty', !ta.value);
+    requestAnimationFrame(() => fit(ta));
+  }
+  document.querySelectorAll('.ans').forEach(el => { if (!seen.has(el.dataset.id) && !localBoxes.has(el.dataset.id)) el.remove(); });
+}
+/* ---------- save page as image ---------- */
+async function savePageImage(i) {
+  const a = cur(); const p = a.pages[i]; if (!downloads) return;
+  try {
+    await document.fonts.load('700 40px Andika');
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = '/_blob/' + p.id; });
+    const W = img.naturalWidth, H = img.naturalHeight;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+    const fs = SIZES[a.size || 'm'] * W;
+    g.fillStyle = '#1F669C'; g.font = `700 ${fs}px Andika, sans-serif`; g.textBaseline = 'top';
+    for (const [, d] of answers) {
+      if (d.p !== p.id || !d.t) continue;
+      const x = d.x / 100 * W + fs * .2 + 1.5, maxW = d.w / 100 * W - fs * .4 - 3;
+      let y = d.y / 100 * H + fs * .05 + 1.5;
+      for (const para of d.t.split('\n')) {
+        let line = '';
+        for (const word of para.split(' ')) {
+          const test = line ? line + ' ' + word : word;
+          if (g.measureText(test).width > maxW && line) { g.fillText(line, x, y); y += fs * 1.25; line = word; }
+          else line = test;
+        }
+        g.fillText(line, x, y); y += fs * 1.25;
+      }
+    }
+    const blob = await canvasToBlob(c);
+    const name = (a.title || 'homework').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') + `-page-${i + 1}.jpg`;
+    await downloads.save({ filename: name, data: blob });
+  } catch (e) { if (e?.code !== 'declined') toast('Could not save the image (' + (e?.code || 'error') + ')'); }
+}
+
+boot();
+})();
+</script>

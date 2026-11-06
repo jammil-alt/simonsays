@@ -1,0 +1,49 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "homework-desk",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Served only on the custom domain, which sits behind Cloudflare Access.
+  // workers.dev and preview URLs are off so nothing reaches the data around Access.
+  "routes": [{ "pattern": "simonswork.app", "custom_domain": true }],
+  "workers_dev": false,
+  "preview_urls": false,
+
+  // The UI is plain static files. Only /api/* and /img/* run the Worker.
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/img/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "homework-db",
+      // Paste the id printed by `npx wrangler d1 create homework-db`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    { "binding": "PAGES", "bucket_name": "homework-pages" }
+  ],
+
+  "vars": {
+    // Model used for clean copies. Change here (or in the dashboard) without a code change.
+    "CLAUDE_MODEL": "claude-opus-5-5",
+    // low | medium | high. Reading a worksheet rarely needs more than medium.
+    "CLAUDE_EFFORT": "medium",
+    // Cloudflare Access. The API refuses every request until both are set
+    // (local dev skips this with DEV_NO_ACCESS=1 in .dev.vars).
+    // ACCESS_TEAM_DOMAIN looks like "yourfamily.cloudflareaccess.com".
+    // ACCESS_AUD is the "Application Audience (AUD) Tag" of the Access app.
+    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_AUD": ""
+  },
+
+  "observability": { "enabled": true }
+}
