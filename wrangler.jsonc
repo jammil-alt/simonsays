@@ -22,8 +22,7 @@
     {
       "binding": "DB",
       "database_name": "homework-db",
-      // Paste the id printed by `npx wrangler d1 create homework-db`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "9cc65156-3a58-415a-a3f2-73e7ca83f67c",
       "migrations_dir": "migrations"
     }
   ],
@@ -41,8 +40,8 @@
     // (local dev skips this with DEV_NO_ACCESS=1 in .dev.vars).
     // ACCESS_TEAM_DOMAIN looks like "yourfamily.cloudflareaccess.com".
     // ACCESS_AUD is the "Application Audience (AUD) Tag" of the Access app.
-    "ACCESS_TEAM_DOMAIN": "",
-    "ACCESS_AUD": ""
+    "ACCESS_TEAM_DOMAIN": "ssm-141921.cloudflareaccess.com",
+    "ACCESS_AUD": "97974704d64697ae220fad1a1788166d448a81643722ea51e46d58538adf4bb0"
   },
 
   "observability": { "enabled": true }
