@@ -48,6 +48,8 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .pill{font:500 10px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;padding:5px 7px;border:1px solid var(--stone-200);background:var(--stone-075);color:var(--stone-700);white-space:nowrap}
 .pill.todo{border-color:var(--clay-200);background:var(--clay-050);color:var(--clay-600)}
 .pill.done{border-color:var(--stone-900);background:var(--stone-900);color:var(--paper)}
+.side-foot{padding:12px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-bottom:max(12px,env(safe-area-inset-bottom,0px));border-top:1px solid var(--border-divider)}
+.btn.games{width:100%;text-decoration:none}
 .list-empty{padding:24px 16px;color:var(--text-secondary);font-size:13px}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer;transition:background 160ms,transform 120ms;white-space:nowrap}
@@ -182,6 +184,9 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
       </button>
     </div>
     <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
+    <div class="side-foot">
+      <a class="btn games" href="/games/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="4"/><path d="M7 10v4M5 12h4M15 11h.01M18 13h.01"/></svg>Typing games</a>
+    </div>
   </aside>
   <main class="main" id="main">
     <div class="main-inner" id="view">

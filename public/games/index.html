@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Typing Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/games/games.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="pbtn" href="/">&lt; HOMEWORK</a>
+  <span></span>
+  <div class="tools"><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button></div>
+</header>
+<main class="hub">
+  <h1 class="logo">TYPING<br>ARCADE</h1>
+  <p class="blink">PICK A GAME</p>
+  <div class="cards">
+    <a class="card" href="/games/letter-lane.html" data-game="letter-lane">
+      <canvas width="160" height="90" data-scene="road" aria-hidden="true"></canvas>
+      <h2>LETTER LANE</h2>
+      <p>Ducks on the road! Type the letter on the sign to zoom past before the clock runs out.</p>
+      <span class="stars" data-stars></span>
+    </a>
+    <a class="card" href="/games/meteor-words.html" data-game="meteor-words">
+      <canvas width="160" height="90" data-scene="space" aria-hidden="true"></canvas>
+      <h2>METEOR WORDS</h2>
+      <p>Meteors are falling on the town! Type what's on them to zap them with the laser.</p>
+      <span class="stars" data-stars></span>
+    </a>
+  </div>
+  <p class="tip">Rest your pointer fingers on <b>F</b> and <b>J</b>.<br>Feel the little bumps? That's home!</p>
+</main>
+<script src="/api.js"></script>
+<script src="/games/shared.js"></script>
+<script>
+(() => {
+  const { Sound, LEVELS } = Arcade;
+  const muteBtn = document.getElementById('muteBtn');
+  const sync = () => { muteBtn.textContent = Sound.muted ? 'SOUND: OFF' : 'SOUND: ON'; muteBtn.setAttribute('aria-pressed', !Sound.muted); };
+  muteBtn.onclick = () => { Sound.setMuted(!Sound.muted); sync(); };
+  sync();
+
+  // Star totals per game
+  const max = LEVELS.length * 3;
+  const show = (el, n) => { el.innerHTML = `<i class="on">★</i> ${n} / ${max}`; };
+  document.querySelectorAll('[data-stars]').forEach(el => show(el, 0));
+  API.gameScores().then(s => {
+    document.querySelectorAll('.card').forEach(card => {
+      const got = Object.values(s?.[card.dataset.game] || {}).reduce((n, l) => n + (l.stars || 0), 0);
+      show(card.querySelector('[data-stars]'), got);
+    });
+  }).catch(() => {});
+
+  // Little animated preview scenes
+  const scenes = [...document.querySelectorAll('canvas[data-scene]')].map(c => ({ c, g: c.getContext('2d'), kind: c.dataset.scene }));
+  function road(g, t) {
+    const off = (t * 40) % 16;
+    for (let y = -16; y < 90; y += 8) {
+      const band = Math.floor((y - off) / 8) & 1, yy = y + (off % 8);
+      g.fillStyle = band ? '#4fae4a' : '#47a243'; g.fillRect(0, yy, 160, 8);
+      g.fillStyle = band ? '#e43b44' : '#fff'; g.fillRect(46, yy, 4, 8); g.fillRect(110, yy, 4, 8);
+    }
+    g.fillStyle = '#5b5d6b'; g.fillRect(50, 0, 60, 90);
+    g.fillStyle = '#e9e9f0'; for (let y = -16; y < 90; y += 16) g.fillRect(79, y + off, 2, 8);
+    const dy = (t * 40) % 120 - 20;
+    g.fillStyle = '#ffd93d'; [60, 72, 80, 88].forEach((x, i) => g.fillRect(x, dy, i ? 4 : 6, i ? 4 : 6));
+    g.fillStyle = '#fff'; g.fillRect(72, dy - 16, 16, 12); g.fillStyle = '#1b1b2f'; g.fillRect(77, dy - 13, 2, 6); g.fillRect(77, dy - 13, 6, 2); g.fillRect(77, dy - 10, 5, 2);
+    g.fillStyle = '#e43b44'; g.fillRect(74, 66, 12, 16); g.fillStyle = '#6fd0ff'; g.fillRect(76, 69, 8, 4);
+  }
+  function space(g, t) {
+    g.fillStyle = '#0a0c26'; g.fillRect(0, 0, 160, 90);
+    for (let i = 0; i < 30; i++) { g.fillStyle = Math.sin(t * 2 + i) > 0 ? '#fff' : '#6b74b8'; g.fillRect((i * 53) % 160, (i * 29) % 60, 1, 1); }
+    const y = (t * 22) % 90 - 10, x = 40 + y * 0.5;
+    g.fillStyle = '#ff9a3c'; g.fillRect(x - 6, y - 6, 3, 3); g.fillStyle = '#ffe066'; g.fillRect(x - 3, y - 3, 3, 3);
+    g.fillStyle = '#b08968'; g.fillRect(x - 2, y - 2, 7, 7);
+    g.fillStyle = '#2e3470'; [[0, 18], [20, 26], [44, 14], [62, 22], [96, 30], [124, 16], [142, 24]].forEach(([bx, h]) => g.fillRect(bx, 90 - h, 18, h));
+    g.fillStyle = '#ffe28a'; for (let i = 0; i < 24; i++) g.fillRect((i * 37) % 156 + 2, 90 - ((i * 7) % 12) - 4, 2, 2);
+  }
+  const loop = t => { for (const s of scenes) (s.kind === 'road' ? road : space)(s.g, t / 1000); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

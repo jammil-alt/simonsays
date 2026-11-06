@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>METEOR WORDS · Typing Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/games/games.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="pbtn" href="/games/">&lt; ARCADE</a>
+  <h1>METEOR WORDS</h1>
+  <div class="tools"><button class="pbtn" type="button" id="helpBtn">KEYS: ON</button><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button></div>
+</header>
+<div class="stage"><canvas id="screen" width="320" height="180" aria-label="METEOR WORDS game screen"></canvas><div class="overlay" id="overlay"><div class="panel small"><p class="tag">LOADING…</p></div></div></div>
+<div class="kbd" id="kbd"></div>
+<div class="legend"><span style="--c:var(--f-pinky)">PINKY</span><span style="--c:var(--f-ring)">RING</span><span style="--c:var(--f-middle)">MIDDLE</span><span style="--c:var(--f-pointer)">POINTER</span></div>
+<script src="/api.js"></script>
+<script src="/games/shared.js"></script>
+<script src="/games/meteor-words.js"></script>
+</body>
+</html>

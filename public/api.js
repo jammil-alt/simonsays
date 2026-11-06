@@ -48,5 +48,10 @@ window.API = (() => {
     makeClean: (pageId, signal) => req('POST', `/api/pages/${enc(pageId)}/clean`, { signal }),
 
     imgUrl: (key) => '/img/' + key,
+
+    /* Typing games */
+    gameScores: () => req('GET', '/api/games/scores'),
+    saveGameScore: (round) => req('POST', '/api/games/scores', { json: round }),
+    gameWords: () => req('GET', '/api/games/words'),
   };
 })();

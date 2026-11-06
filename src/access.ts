@@ -32,7 +32,8 @@ export function accessEnabled(env: Env): boolean {
 }
 
 export async function verifyAccess(req: Request, env: Env): Promise<boolean> {
-  if (!accessEnabled(env)) return env.DEV_NO_ACCESS === "1";
+  if (env.DEV_NO_ACCESS === "1") return true;   // local `wrangler dev` only; never set this in production
+  if (!accessEnabled(env)) return false;
   const team = env.ACCESS_TEAM_DOMAIN!.replace(/^https?:\/\//, "").replace(/\/$/, "");
   let token = req.headers.get("Cf-Access-Jwt-Assertion");
   if (!token) {

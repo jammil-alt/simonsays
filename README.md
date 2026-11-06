@@ -5,6 +5,7 @@ it as a clean copy with boxes to type in, or you can tap anywhere on the photo t
 
 - **Stack:** one Cloudflare Worker (static UI + REST API), D1 for data, R2 for page images, the Anthropic API
   for clean copies, and Cloudflare Access for a family-only login.
+- **Typing Arcade:** `/games/`. Letter Lane and Meteor Words, from "find F and J" up to words from his own worksheets.
 - **Live:** https://simonswork.app
 - **Set up Cloudflare:** [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md)
 - **Plan / roadmap:** [docs/PLAN.md](docs/PLAN.md)
