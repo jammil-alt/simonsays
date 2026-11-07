@@ -503,6 +503,10 @@ function wireDrop(el) {
   el.addEventListener('dragleave', () => el.classList.remove('over'));
   el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); addFiles([...e.dataTransfer.files]); });
 }
+// Windows and Android pickers can hide .heic files under image/*, so name them.
+// Not on iPhone/iPad: there image/* alone makes iOS hand over Photos picks as JPEG.
+if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)))
+  $('#fileIn').accept += ',.heic,.heif,image/heic,image/heif';
 $('#fileIn').addEventListener('change', e => {
   const f = [...e.target.files]; e.target.value = '';
   const target = uploadTarget; uploadTarget = null;
@@ -510,7 +514,7 @@ $('#fileIn').addEventListener('change', e => {
 });
 document.addEventListener('paste', e => {
   if (!currentId) return;
-  const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/') || x.type === 'application/pdf');
+  const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/') || x.type === 'application/pdf' || HEIC_EXT.test(x.name));
   if (f.length) { e.preventDefault(); addFiles(f); }
 });
 
@@ -533,16 +537,47 @@ function loadPdf() {
 }
 
 function canvasToBlob(c) { return new Promise(r => c.toBlob(r, 'image/jpeg', .86)); }
+
+// iPhone photos are HEIC. Safari opens them itself; Chrome, Firefox and Edge can't,
+// so they get a HEIC decoder (libheif), loaded only the first time one is needed.
+const HEIC_EXT = /\.(heic|heif)$/i;
+async function isHeic(file) {
+  if (/^image\/hei[cf]/i.test(file.type) || HEIC_EXT.test(file.name)) return true;
+  const brand = new TextDecoder().decode(await file.slice(8, 12).arrayBuffer());
+  return ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'].includes(brand);
+}
+let heicReady = null;
+function loadHeic() {
+  if (!heicReady) heicReady = loadScript('https://cdn.jsdelivr.net/npm/heic-to@1.6.5/dist/iife/heic-to.js')
+    .then(() => window.HeicTo)
+    .catch(e => { heicReady = null; throw Object.assign(new Error('heic_load'), { code: 'heic_load', cause: e }); });
+  return heicReady;
+}
+function loadImageEl(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    im.src = url;
+  });
+}
+async function decodeImage(file) {
+  try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch {}
+  try { return await loadImageEl(file); }
+  catch (e) {
+    if (!(await isHeic(file))) throw Object.assign(e, { code: 'image_unreadable' });
+  }
+  const HeicTo = await loadHeic();
+  try { return await HeicTo({ blob: file, type: 'bitmap' }); }
+  catch (e) { throw Object.assign(new Error('heic'), { code: 'heic_unreadable', cause: e }); }
+}
 async function imageFileToCanvas(file) {
   const MAX = 2000;
-  let bmp;
-  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-  catch {
-    bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  }
+  const bmp = await decodeImage(file);
   const w0 = bmp.width, h0 = bmp.height, k = Math.min(1, MAX / Math.max(w0, h0));
   const c = document.createElement('canvas'); c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
   return c;
 }
 
@@ -550,7 +585,7 @@ async function addFiles(files, target) {
   const jobs = [];
   for (const f of files) {
     if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) jobs.push({ pdf: f });
-    else if (f.type.startsWith('image/') || /\.(jpe?g|png|heic|webp|gif)$/i.test(f.name)) jobs.push({ img: f });
+    else if (f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name)) jobs.push({ img: f });
   }
   if (!jobs.length) return toast('Pick photos or a PDF.');
   let id;
