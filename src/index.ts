@@ -5,6 +5,7 @@ import { createAssignment, deleteAssignment, getAssignment, listAssignments, upd
 import { fixClean, makeClean, unfixClean } from "./routes/clean";
 import { getScores, getWords, saveScore } from "./routes/games";
 import { addPage, deletePage, movePage, serveImage } from "./routes/pages";
+import { autoTag, putTags } from "./routes/tags";
 
 type Handler = (req: Request, env: Env, p: string[]) => Promise<Response>;
 const routes: [string, RegExp, Handler][] = [
@@ -20,6 +21,8 @@ const routes: [string, RegExp, Handler][] = [
   ["POST", /^\/api\/pages\/([^/]+)\/clean$/, (_r, env, [id]) => makeClean(env, id)],
   ["POST", /^\/api\/pages\/([^/]+)\/fix$/, (r, env, [id]) => fixClean(r, env, id)],
   ["POST", /^\/api\/pages\/([^/]+)\/unfix$/, (_r, env, [id]) => unfixClean(env, id)],
+  ["POST", /^\/api\/pages\/([^/]+)\/autotag$/, (_r, env, [id]) => autoTag(env, id)],
+  ["PUT", /^\/api\/pages\/([^/]+)\/tags$/, (r, env, [id]) => putTags(r, env, id)],
   ["PUT", /^\/api\/answers\/([^/]+)$/, (r, env, [id]) => putAnswer(r, env, id)],
   ["DELETE", /^\/api\/answers\/([^/]+)$/, (_r, env, [id]) => deleteAnswer(env, id)],
   ["GET", /^\/api\/games\/scores$/, (_r, env) => getScores(env)],

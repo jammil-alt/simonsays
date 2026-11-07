@@ -51,6 +51,10 @@ window.API = (() => {
     /** Put the page back the way it was before the last Fix. */
     unfixClean: (pageId) => req('POST', `/api/pages/${enc(pageId)}/unfix`),
 
+    /** Read tags off a page photo (small model). Resolves to {tags}. */
+    autoTag: (pageId) => req('POST', `/api/pages/${enc(pageId)}/autotag`),
+    setTags: (pageId, tags) => req('PUT', `/api/pages/${enc(pageId)}/tags`, { json: { tags } }),
+
     imgUrl: (key) => '/img/' + key,
 
     /* Typing games */

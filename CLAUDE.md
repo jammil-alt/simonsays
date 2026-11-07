@@ -13,6 +13,8 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 - `src/index.ts` — Worker router. Only `/api/*` and `/img/*` run the Worker (`run_worker_first`); everything else is a static asset.
 - `src/routes/*.ts` — assignments, pages (+ image serving), answers/typed values, clean copy (build, Fix, Put it back).
 - `src/prompt.ts` — `PAGE_PROMPT` (build a page) and `fixPrompt` (the child's Fix button).
+- `src/routes/tags.ts` — page tags (subject/topic) read off each photo by `CLAUDE_TAG_MODEL` (Haiku); they drive the
+  sidebar filter. Assignments have no subject in the UI any more (the column stays, unused).
 - `src/access.ts` — Cloudflare Access JWT check. Fails closed unless `DEV_NO_ACCESS=1` (local only).
 - `migrations/` — D1 schema. Add a new numbered file; never edit an applied one.
 - `public/games/` — the Typing Arcade (`/games/`): `shared.js` (levels, word lists, finger-colour keyboard, sounds,
@@ -32,7 +34,7 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   `clean_copies.prev_data` for "Put it back".
 - Field ids (`b1`, `w1`, `p1`… on HTML pages, `b0`, `c2`… on older ones) must match `/^[a-z]\d{1,4}$/` (the
   typed-values allow-list). Rebuilding a page (Redo) clears `typed_values` for it; Fix doesn't.
-- Model and effort come from `CLAUDE_MODEL` / `CLAUDE_EFFORT` in `wrangler.jsonc` vars.
+- Model and effort come from `CLAUDE_MODEL` / `CLAUDE_EFFORT` in `wrangler.jsonc` vars; tagging uses `CLAUDE_TAG_MODEL`.
 - Games are for a beginner on a physical keyboard: every level shows the next key and which finger to use.
   Level ids in `public/games/shared.js` (LEVELS) must match the allow-list in `src/routes/games.ts`.
   Letters are shown UPPERCASE (like the keycaps); words are lowercase.

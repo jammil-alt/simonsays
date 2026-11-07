@@ -1,4 +1,5 @@
 import { type Env, HttpError, checkId, json, readJson, uid } from "../env";
+import { normTags } from "./tags";
 
 const SUBJECTS = ["Math", "Writing", "Reading", "Other"];
 const SIZES = ["s", "m", "l"];
@@ -19,15 +20,31 @@ export async function requireAssignment(env: Env, id: string): Promise<Assignmen
   return row;
 }
 
+/** Union of the pages' tags (each a JSON array), in page order, without duplicates. */
+function mergeTags(pageTags: string | null): string[] {
+  const out: string[] = [], seen = new Set<string>();
+  for (const t of (JSON.parse(pageTags || "[]") as string[]).flatMap((x) => normTags(JSON.parse(x)))) {
+    if (!seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); out.push(t); }
+  }
+  return out;
+}
+
 /** GET /api/assignments — sidebar list. */
 export async function listAssignments(env: Env): Promise<Response> {
   const { results } = await env.DB.prepare(
     `SELECT a.*,
        (SELECT COUNT(*) FROM pages p WHERE p.assignment_id = a.id) AS page_count,
-       (SELECT r2_key FROM pages p WHERE p.assignment_id = a.id ORDER BY position LIMIT 1) AS thumb_key
+       (SELECT r2_key FROM pages p WHERE p.assignment_id = a.id ORDER BY position LIMIT 1) AS thumb_key,
+       (SELECT json_group_array(tags) FROM pages p WHERE p.assignment_id = a.id AND tags IS NOT NULL) AS page_tags,
+       (SELECT json_group_array(id) FROM pages p WHERE p.assignment_id = a.id AND tags IS NULL) AS untagged
      FROM assignments a ORDER BY a.created_at DESC`,
-  ).all<AssignmentRow & { page_count: number; thumb_key: string | null }>();
-  return json(results.map((r) => ({ ...toAssignment(r), pageCount: r.page_count, thumbKey: r.thumb_key })));
+  ).all<AssignmentRow & { page_count: number; thumb_key: string | null; page_tags: string; untagged: string }>();
+  return json(results.map((r) => ({
+    ...toAssignment(r), pageCount: r.page_count, thumbKey: r.thumb_key,
+    // An assignment's tags are its pages' tags put together.
+    tags: mergeTags(r.page_tags),
+    untagged: JSON.parse(r.untagged || "[]") as string[],
+  })));
 }
 
 function cleanFields(body: Record<string, unknown>): Partial<AssignmentRow> {
@@ -60,7 +77,7 @@ export async function createAssignment(req: Request, env: Env): Promise<Response
   const row: AssignmentRow = {
     id: uid(),
     title: f.title ?? "Homework",
-    subject: f.subject ?? "Math",
+    subject: f.subject ?? null,
     due: f.due ?? "",
     done: f.done ?? 0,
     size: f.size ?? "m",
@@ -76,7 +93,7 @@ export async function createAssignment(req: Request, env: Env): Promise<Response
 export async function getAssignment(env: Env, id: string): Promise<Response> {
   const a = await requireAssignment(env, id);
   const [pages, answers, clean, typed] = await env.DB.batch([
-    env.DB.prepare("SELECT id, r2_key, w, h FROM pages WHERE assignment_id = ? ORDER BY position").bind(a.id),
+    env.DB.prepare("SELECT id, r2_key, w, h, tags FROM pages WHERE assignment_id = ? ORDER BY position").bind(a.id),
     env.DB.prepare(
       `SELECT ans.id, ans.page_id, ans.x, ans.y, ans.w, ans.text FROM answers ans
        JOIN pages p ON p.id = ans.page_id WHERE p.assignment_id = ?`,
@@ -90,13 +107,13 @@ export async function getAssignment(env: Env, id: string): Promise<Response> {
        JOIN pages p ON p.id = t.page_id WHERE p.assignment_id = ?`,
     ).bind(a.id),
   ]);
-  type P = { id: string; r2_key: string; w: number; h: number };
+  type P = { id: string; r2_key: string; w: number; h: number; tags: string | null };
   type A = { id: string; page_id: string; x: number; y: number; w: number; text: string };
   type C = { page_id: string; data: string; model: string; created_at: number; can_undo: number };
   type T = { page_id: string; vals: string };
   return json({
     ...toAssignment(a),
-    pages: (pages.results as P[]).map((p) => ({ id: p.id, key: p.r2_key, w: p.w, h: p.h })),
+    pages: (pages.results as P[]).map((p) => ({ id: p.id, key: p.r2_key, w: p.w, h: p.h, tags: p.tags == null ? null : normTags(JSON.parse(p.tags)) })),
     answers: (answers.results as A[]).map((r) => ({ id: r.id, pageId: r.page_id, x: r.x, y: r.y, w: r.w, t: r.text ?? "" })),
     clean: Object.fromEntries((clean.results as C[]).map((r) => [r.page_id, { data: JSON.parse(r.data), at: r.created_at, model: r.model, canUndo: !!r.can_undo }])),
     typed: Object.fromEntries((typed.results as T[]).map((r) => [r.page_id, JSON.parse(r.vals)])),

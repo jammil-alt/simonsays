@@ -6,7 +6,6 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const SIZES = { s: .02, m: .026, l: .034 };
-const SUBJECTS = ['Math', 'Writing', 'Reading', 'Other'];
 const ICON = {
   grip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
@@ -28,7 +27,9 @@ const viewMode = new Map();      // pageId -> 'clean' | 'photo'
 const genState = new Map();      // pageId -> {ctl} | {error}
 const typedTimers = new Map();
 const WFS = { s: '18px', m: '21px', l: '25px' };
-let assignments = [];            // sidebar list: [{id, title, subject, due, done, size, createdAt, pageCount, thumbKey}]
+let assignments = [];            // sidebar list: [{id, title, due, done, size, createdAt, pageCount, thumbKey, tags, untagged}]
+let tagFilter = '';               // show only assignments with this tag ('' = all)
+try { tagFilter = localStorage.getItem('hw:tag') || ''; } catch {}
 let currentId = null;
 let detail = null;               // current assignment: list fields + pages [{id, key, w, h}]
 let answers = new Map();         // id -> {p, x, y, w, t}, for current assignment
@@ -75,6 +76,7 @@ async function refreshList(first) {
     assignments = await API.listAssignments();
     if (detail) syncListItem();
     renderList();
+    tagUntagged();
   } catch (e) {
     if (first) $('#list').innerHTML = `<div class="list-empty">${esc(errText(e, 'Could not load assignments'))}</div>`;
     else if (e.code === 'signed_out') toast(errText(e));
@@ -134,23 +136,114 @@ async function loadDetail(id, first) {
 function syncListItem() {
   const a = cur(); if (!a) return;
   const row = assignments.find(x => x.id === a.id); if (!row) return;
-  Object.assign(row, { title: a.title, subject: a.subject, due: a.due, done: a.done, size: a.size,
-    pageCount: a.pages.length, thumbKey: a.pages[0]?.key || null });
+  Object.assign(row, { title: a.title, due: a.due, done: a.done, size: a.size,
+    pageCount: a.pages.length, thumbKey: a.pages[0]?.key || null, tags: mergeTags(a.pages) });
 }
 
 /* ---------- list ---------- */
 function renderList() {
   const el = $('#list');
+  renderTagbar();
   if (!assignments.length) { el.innerHTML = '<div class="list-empty">No assignments yet. Press New to add the first worksheet.</div>'; return; }
-  el.innerHTML = assignments.map(a => {
+  const shown = tagFilter ? assignments.filter(a => hasTag(a, tagFilter) || a.id === currentId) : assignments;
+  el.innerHTML = shown.map(a => {
     const n = a.pageCount || 0;
     const thumb = a.thumbKey ? `style="background-image:url('${esc(API.imgUrl(a.thumbKey))}')"` : '';
-    const meta = [a.subject, a.due ? 'Due ' + fmtDue(a.due) : fmtDate(a.createdAt), n + (n === 1 ? ' page' : ' pages')].filter(Boolean).join(' · ');
+    const meta = [a.due ? 'Due ' + fmtDue(a.due) : fmtDate(a.createdAt), n + (n === 1 ? ' page' : ' pages')].join(' · ');
+    const tags = (a.tags || []).slice(0, 4).map(t => `<span>${esc(t)}</span>`).join('');
     return `<button class="row" type="button" data-id="${esc(a.id)}" aria-current="${a.id === currentId}">
       <span class="thumb" ${thumb}></span>
-      <span style="min-width:0"><div class="row-title">${esc(a.title || 'Untitled')}</div><div class="row-meta">${esc(meta)}</div></span>
+      <span style="min-width:0"><div class="row-title">${esc(a.title || 'Untitled')}</div><div class="row-meta">${esc(meta)}</div>${tags ? `<div class="row-tags">${tags}</div>` : ''}</span>
       <span class="pill ${a.done ? 'done' : 'todo'}">${a.done ? 'Done' : 'To do'}</span></button>`;
-  }).join('');
+  }).join('') || `<div class="list-empty">Nothing tagged “${esc(tagFilter)}”.</div>`;
+}
+
+/* ---------- tags ---------- */
+// Each page gets 1–3 tags (subject, topic) read off its photo by a small model; an assignment shows its pages' tags.
+const sameTag = (a, b) => a.toLowerCase() === b.toLowerCase();
+const hasTag = (a, t) => (a.tags || []).some(x => sameTag(x, t));
+function mergeTags(pages) {
+  const out = [];
+  for (const p of pages) for (const t of p.tags || []) if (!out.some(x => sameTag(x, t))) out.push(t);
+  return out;
+}
+function renderTagbar() {
+  const bar = $('#tagbar');
+  const count = new Map();
+  for (const a of assignments) for (const t of a.tags || []) {
+    const k = [...count.keys()].find(x => sameTag(x, t)) ?? t; count.set(k, (count.get(k) || 0) + 1);
+  }
+  if (tagFilter && ![...count.keys()].some(t => sameTag(t, tagFilter))) setTagFilter('', false);
+  bar.hidden = !count.size;
+  const tags = [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  bar.innerHTML = `<button type="button" class="tchip" data-tag="" aria-pressed="${!tagFilter}">All</button>` +
+    tags.map(([t, n]) => `<button type="button" class="tchip" data-tag="${esc(t)}" aria-pressed="${sameTag(t, tagFilter)}">${esc(t)}<small>${n}</small></button>`).join('');
+}
+function setTagFilter(t, render = true) {
+  tagFilter = t;
+  try { localStorage.setItem('hw:tag', t); } catch {}
+  if (render) renderList();
+}
+$('#tagbar').addEventListener('click', e => { const b = e.target.closest('[data-tag]'); if (b) setTagFilter(sameTag(b.dataset.tag, tagFilter) ? '' : b.dataset.tag); });
+
+/** A page's tags changed: update the open assignment, its page bar and the sidebar. */
+function applyTags(pageId, tags) {
+  for (const a of assignments) a.untagged = (a.untagged || []).filter(id => id !== pageId);
+  const a = cur(); const p = a?.pages.find(x => x.id === pageId);
+  if (p) { p.tags = tags; syncListItem(); const sec = document.querySelector(`.page[data-page="${pageId}"]`); if (sec) renderPageTags(sec); }
+  renderList();
+}
+
+// Tag pages that have none yet (new uploads, and pages from before tags existed), two at a time.
+const tagQueue = []; const tagQueued = new Set(); let tagRunning = 0, tagOff = false;
+function queueTag(pageId, assignmentId) {
+  if (tagOff || tagQueued.has(pageId)) return;
+  tagQueued.add(pageId); tagQueue.push({ pageId, assignmentId }); pumpTags();
+}
+function tagUntagged() { for (const a of assignments) for (const id of a.untagged || []) queueTag(id, a.id); }
+async function pumpTags() {
+  while (tagRunning < 2 && tagQueue.length && !tagOff) {
+    const { pageId, assignmentId } = tagQueue.shift(); tagRunning++;
+    const sec = document.querySelector(`.page[data-page="${pageId}"]`); if (sec) renderPageTags(sec, true);
+    API.autoTag(pageId).then(r => {
+      const row = assignments.find(x => x.id === assignmentId);
+      if (row && !cur()?.pages.some(p => p.id === pageId)) row.tags = mergeTags([{ tags: row.tags }, { tags: r.tags }]);
+      applyTags(pageId, r.tags);
+    }).catch(e => {
+      // No key / signed out: stop asking. Anything else: leave it for next time.
+      if (['not_configured', 'signed_out', 'access_not_configured'].includes(e.code)) tagOff = true;
+      tagQueued.delete(pageId);
+      const s = document.querySelector(`.page[data-page="${pageId}"]`); if (s) renderPageTags(s);
+    }).finally(() => { tagRunning--; pumpTags(); });
+  }
+}
+
+function renderPageTags(sec, busy) {
+  const slot = sec.querySelector('.ptags'); const a = cur(); if (!slot || !a) return;
+  const p = a.pages.find(x => x.id === sec.dataset.page); if (!p) return;
+  if (busy || (!p.tags && tagQueued.has(p.id))) { slot.innerHTML = '<span class="tagging">Reading tags…</span>'; return; }
+  slot.innerHTML = (p.tags || []).map((t, i) => `<span class="ptag">${esc(t)}<button type="button" data-rm="${i}" aria-label="Remove tag ${esc(t)}">${ICON.x}</button></span>`).join('') +
+    '<button type="button" class="ptag-add" data-add aria-label="Add a tag">+ Tag</button>';
+  const save = async tags => {
+    const before = p.tags; applyTags(p.id, tags);
+    try { applyTags(p.id, (await API.setTags(p.id, tags)).tags); }
+    catch (e) { applyTags(p.id, before); toast(errText(e, 'Tag not saved')); }
+  };
+  slot.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => save((p.tags || []).filter((_, i) => i !== +b.dataset.rm)));
+  slot.querySelector('[data-add]').onclick = () => {
+    const input = document.createElement('input');
+    Object.assign(input, { className: 'ptag-in', maxLength: 24, placeholder: 'New tag' });
+    input.setAttribute('aria-label', 'New tag');
+    slot.querySelector('[data-add]').replaceWith(input); input.focus();
+    let done = false;
+    const finish = ok => {
+      if (done) return; done = true;
+      const t = input.value.trim();
+      if (ok && t && !(p.tags || []).some(x => sameTag(x, t))) save([...(p.tags || []), t]); else renderPageTags(sec);
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+    input.onblur = () => finish(true);
+  };
 }
 $('#list').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) open(r.dataset.id); });
 
@@ -165,7 +258,7 @@ $('#newBtn').addEventListener('click', () => {
   // and create the assignment while the picker is up.
   $('#fileIn').click();
   const title = 'Homework ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const p = API.createAssignment({ title, subject: 'Math' }).then(a => {
+  const p = API.createAssignment({ title }).then(a => {
     assignments.unshift(a);
     open(a.id);
     return a.id;
@@ -198,7 +291,6 @@ function headerHTML(a) {
       <label class="eyebrow" for="titleIn">Assignment</label>
       <input class="title-input" id="titleIn" value="${esc(a.title)}" autocomplete="off">
       <div class="fields">
-        <div class="seg" role="group" aria-label="Subject">${SUBJECTS.map(s => `<button type="button" data-subj="${s}" aria-pressed="${a.subject === s}">${s}</button>`).join('')}</div>
         <label class="field" for="dueIn">Due <input type="date" id="dueIn" value="${esc(a.due || '')}"></label>
       </div>
     </div>
@@ -218,7 +310,6 @@ function renderHeaderOnly() {
   const slot = $('#headSlot'); if (!slot) return;
   const t = $('#titleIn'); if (document.activeElement !== t) t.value = a.title || '';
   if (document.activeElement !== $('#dueIn')) $('#dueIn').value = a.due || '';
-  document.querySelectorAll('[data-subj]').forEach(b => b.setAttribute('aria-pressed', a.subject === b.dataset.subj));
   document.querySelectorAll('[data-size]').forEach(b => b.setAttribute('aria-pressed', (a.size||'m') === b.dataset.size));
   const d = $('#doneBtn'); d.className = 'btn ' + (a.done ? '' : 'primary'); d.innerHTML = ICON.check + (a.done ? 'Mark not done' : 'Mark done');
   document.querySelectorAll('.sheet').forEach(s => s.style.setProperty('--fs', SIZES[a.size || 'm']));
@@ -249,7 +340,6 @@ function wireHeader() {
   $('#titleIn').oninput = e => { clearTimeout(tt); const v = e.target.value; tt = setTimeout(() => update({ title: v.trim() || 'Untitled' }), 500); };
   $('#titleIn').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
   $('#dueIn').onchange = e => update({ due: e.target.value });
-  document.querySelectorAll('[data-subj]').forEach(b => b.onclick = () => update({ subject: b.dataset.subj }));
   document.querySelectorAll('[data-size]').forEach(b => b.onclick = () => update({ size: b.dataset.size }));
   $('#doneBtn').onclick = () => update({ done: !cur().done });
   $('#cleanAllBtn').onclick = cleanAll;
@@ -302,7 +392,7 @@ function renderPages() {
   }
   el.innerHTML = `<div class="hint">${ICON.add.replace('aria-hidden', 'class="ico" aria-hidden')}<span><b>Clean copy</b> rebuilds a messy photo as a tidy worksheet with boxes to type in. On the <b>photo</b>, tap anywhere to type an answer right there.</span></div>` +
     pages.map((p, i) => `<section class="page" data-page="${esc(p.id)}" aria-label="Page ${i + 1}">
-      <div class="page-bar"><span class="eyebrow">Page ${i + 1} of ${pages.length}<span class="prog"></span></span>
+      <div class="page-bar"><span><span class="eyebrow">Page ${i + 1} of ${pages.length}<span class="prog"></span></span><span class="ptags"></span></span>
         <div class="page-tools"><span class="vtools" style="display:contents"></span>
           <button class="btn ghost" type="button" data-act="dl" data-i="${i}">${ICON.dl}Save image</button>
           ${i > 0 ? `<button class="btn ghost icon" type="button" data-act="up" data-i="${i}" aria-label="Move page up">${ICON.up}</button>` : ''}
@@ -318,7 +408,7 @@ function renderPages() {
   el.querySelectorAll('.sheet').forEach(s => { ro.observe(s); s.addEventListener('click', onSheetClick); });
   el.querySelectorAll('.page .clean').forEach(wireFixTaps);
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => pageAction(b.dataset.act, +b.dataset.i, b));
-  el.querySelectorAll('.page').forEach(refreshPage);
+  el.querySelectorAll('.page').forEach(sec => { refreshPage(sec); renderPageTags(sec); });
   syncBoxes();
 }
 
@@ -895,7 +985,8 @@ async function addFilesNow(files, dest) {
   if (!added.length) return;
   const a = cur();
   if (a && a.id === id) {
-    a.pages.push(...added.map(p => ({ id: p.id, key: p.key, w: p.w, h: p.h })));
+    a.pages.push(...added.map(p => ({ id: p.id, key: p.key, w: p.w, h: p.h, tags: null })));
+    for (const p of added) queueTag(p.id, id);
     syncListItem(); renderList(); renderPages();
     // Make clean copies straight away, one page at a time.
     (async () => { for (const p of added) if (currentId === id) await makeClean(p.id); })();

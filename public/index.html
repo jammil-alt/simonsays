@@ -49,6 +49,23 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .pill.todo{border-color:var(--clay-200);background:var(--clay-050);color:var(--clay-600)}
 .pill.done{border-color:var(--stone-900);background:var(--stone-900);color:var(--paper)}
 .list-empty{padding:24px 16px;color:var(--text-secondary);font-size:13px}
+/* tag filter (sidebar) and tags on each page */
+.tagbar{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--border-divider)}
+.tagbar[hidden]{display:none}
+.tchip{font:500 12px/1 var(--font-ui);min-height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.tchip small{font:500 10px/1 var(--font-mono);color:var(--text-faint)}
+.tchip[aria-pressed="true"]{background:var(--stone-900);border-color:var(--stone-900);color:var(--paper)}
+.tchip[aria-pressed="true"] small{color:var(--stone-250)}
+.row-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.row-tags span{font:500 10.5px/1 var(--font-ui);padding:3px 6px;border-radius:999px;background:var(--stone-075);border:1px solid var(--stone-150);color:var(--text-body)}
+.ptags{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;margin-left:8px;vertical-align:middle;font-family:var(--font-ui);letter-spacing:0;text-transform:none}
+.ptag{display:inline-flex;align-items:center;gap:2px;font:500 11.5px/1 var(--font-ui);padding:2px 2px 2px 8px;border-radius:999px;background:var(--surface-card);border:1px solid var(--stone-250);color:var(--text-body)}
+.ptag button{border:0;background:none;padding:0;width:20px;height:20px;border-radius:50%;cursor:pointer;color:var(--text-faint);display:grid;place-items:center}
+.ptag button:hover{background:var(--stone-100);color:var(--text-primary)}
+.ptag button svg{width:12px;height:12px}
+.ptag-add{font:500 11.5px/1 var(--font-ui);min-height:22px;padding:0 8px;border-radius:999px;border:1px dashed var(--stone-300);background:none;color:var(--text-secondary);cursor:pointer}
+.ptag-in{font:500 12px/1 var(--font-ui);width:9em;min-height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--action);outline:none}
+.ptags .tagging{font:11.5px var(--font-ui);color:var(--text-faint)}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer;transition:background 160ms,transform 120ms;white-space:nowrap}
 .btn:hover{background:var(--surface-subtle)}
@@ -257,6 +274,7 @@ svg .pt.painted{fill:var(--paint);background:none}
       </button>
       <details class="switcher"><summary class="" aria-label="Switch between Homework and Typing Arcade"><span>Homework</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/" aria-current="page"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details>
     </div>
+    <div class="tagbar" id="tagbar" role="group" aria-label="Show assignments tagged" hidden></div>
     <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
   </aside>
   <main class="main" id="main">
