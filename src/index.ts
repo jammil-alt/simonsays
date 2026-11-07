@@ -4,6 +4,7 @@ import { deleteAnswer, putAnswer, putTyped } from "./routes/answers";
 import { createAssignment, deleteAssignment, getAssignment, listAssignments, updateAssignment } from "./routes/assignments";
 import { makeClean } from "./routes/clean";
 import { getScores, getWords, saveScore } from "./routes/games";
+import { createComic, deleteComic, drawSlot, getComic, listComics } from "./routes/comics";
 import { addPage, deletePage, movePage, serveImage } from "./routes/pages";
 
 type Handler = (req: Request, env: Env, p: string[]) => Promise<Response>;
@@ -23,6 +24,11 @@ const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/games\/scores$/, (_r, env) => getScores(env)],
   ["POST", /^\/api\/games\/scores$/, (r, env) => saveScore(r, env)],
   ["GET", /^\/api\/games\/words$/, (_r, env) => getWords(env)],
+  ["GET", /^\/api\/comics$/, (r, env) => listComics(r, env)],
+  ["POST", /^\/api\/comics$/, (r, env) => createComic(r, env)],
+  ["GET", /^\/api\/comics\/([^/]+)$/, (_r, env, [id]) => getComic(env, id)],
+  ["DELETE", /^\/api\/comics\/([^/]+)$/, (_r, env, [id]) => deleteComic(env, id)],
+  ["POST", /^\/api\/comics\/([^/]+)\/draw\/([^/]+)$/, (r, env, [id, slot]) => drawSlot(r, env, id, slot)],
   ["GET", /^\/img\/(.+)$/, (r, env, [key]) => serveImage(r, env, key)],
 ];
 

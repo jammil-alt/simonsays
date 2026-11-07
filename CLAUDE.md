@@ -7,8 +7,8 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 ## Layout
 - `public/index.html` — markup + CSS. Keep the Groundwork tokens in `:root`. No framework, no build step.
 - `public/api.js` — the only place the browser talks to the server (`window.API`).
-- `public/switcher.js` — the Homework ⇄ Arcade dropdown (top right). The markup is a `<details class="switcher">`
-  repeated in `public/index.html` and each `public/games/*.html`; keep the copies in sync.
+- `public/switcher.js` — the app dropdown (top right). The list of apps lives here; pages only hold an empty
+  `<details class="switcher" data-current="homework|arcade|comic">`.
 - `public/app.js` — UI logic, ported from the prototype.
 - `src/index.ts` — Worker router. Only `/api/*` and `/img/*` run the Worker (`run_worker_first`); everything else is a static asset.
 - `src/routes/*.ts` — assignments, pages (+ image serving), answers/typed values, clean copy.
@@ -19,6 +19,9 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   menu/countdown/results flow), one file per game (`letter-lane.js`, `meteor-words.js`), `games.css`.
   Plain canvas, 320×180 logical pixels; pixel art is built in code with `sprite()`, no image or audio files.
 - `src/routes/games.ts` — game scores and the "My homework" word list (pulled from clean copies).
+- Comic Maker (`/comic/`, plan in `docs/COMIC_PLAN.md`): `public/comic/` (one page, hash routes `#/`, `#/c/<id>`,
+  `#/library`), `src/routes/comics.ts`, `src/comic-prompt.ts` (script prompt, JSON schema, content rules, word list,
+  image prompts), `src/gemini.ts` (Nano Banana Pro images), `src/comic-mock.ts` (fake AI for local dev).
 
 ## Rules
 - All reads and writes go through `/api/*`. The client never calls Anthropic directly; the key is a Worker secret.
@@ -27,6 +30,12 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 - Field ids on the clean copy (`b0`, `w1`, `c2`…) are assigned in render order. Rebuilding a clean copy clears
   `typed_values` for that page (server-side, in `src/routes/clean.ts`).
 - Model and effort come from `CLAUDE_MODEL` / `CLAUDE_EFFORT` in `wrangler.jsonc` vars.
+- Comic Maker: the browser drives the steps (POST /api/comics writes the script, then one
+  POST /api/comics/:id/draw/<char-N|panel-N> per picture, 3 at a time), so no Worker request runs long and an
+  unfinished comic resumes when reopened. Words are never drawn into the pictures: captions and bubbles are HTML
+  over the art, so spelling is exact. The script JSON shape is a contract between `src/comic-prompt.ts` and
+  `public/comic/comic.js`. Keep it calm: no points, streaks or timers; the daily cap is `COMIC_DAILY_LIMIT`.
+  Without `GEMINI_API_KEY` comics show as text panels.
 - Games are for a beginner on a physical keyboard: every level shows the next key and which finger to use.
   Level ids in `public/games/shared.js` (LEVELS) must match the allow-list in `src/routes/games.ts`.
   Letters are shown UPPERCASE (like the keycaps); words are lowercase.
@@ -35,6 +44,7 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 
 ## Commands
 - `cp .dev.vars.example .dev.vars && npm run db:migrate:local && npm run dev` — local app at http://localhost:8787
+  (`MOCK_AI=1` in `.dev.vars` fakes Claude and Gemini for the Comic Maker)
 - `npm run typecheck`
 - `npm run deploy` — applies remote D1 migrations, then deploys (Workers Builds runs this on push to `main`).
 

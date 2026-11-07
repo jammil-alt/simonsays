@@ -167,7 +167,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .side-head .switcher{display:none}
 .side-head{flex-wrap:nowrap}
 .switcher{position:relative}
-.switcher summary{list-style:none;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 8px 0 12px;border:1px solid var(--stone-250);border-radius:var(--r-sm);background:var(--surface-card);color:var(--text-primary);font-weight:600;font-size:13px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.switcher summary{list-style:none;display:inline-flex;white-space:nowrap;align-items:center;gap:6px;min-height:36px;padding:0 8px 0 12px;border:1px solid var(--stone-250);border-radius:var(--r-sm);background:var(--surface-card);color:var(--text-primary);font-weight:600;font-size:13px;cursor:pointer;user-select:none;-webkit-user-select:none}
 .switcher summary::-webkit-details-marker{display:none}
 .switcher summary:hover{background:var(--surface-subtle)}
 .switcher .chev{width:16px;height:16px;opacity:.7;transition:transform 160ms}
@@ -198,12 +198,12 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
       <button class="btn primary" id="newBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New
       </button>
-      <details class="switcher"><summary class="" aria-label="Switch between Homework and Typing Arcade"><span>Homework</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/" aria-current="page"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details>
+      <details class="switcher" data-current="homework"></details>
     </div>
     <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
   </aside>
   <main class="main" id="main">
-    <div class="main-top"><details class="switcher"><summary class="" aria-label="Switch between Homework and Typing Arcade"><span>Homework</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/" aria-current="page"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details></div>
+    <div class="main-top"><details class="switcher" data-current="homework"></details></div>
     <div class="main-inner" id="view">
       <div class="welcome">
         <span class="eyebrow">Homework</span>
@@ -220,8 +220,8 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 </div>
 <input type="file" id="fileIn" accept="image/*,application/pdf" multiple hidden>
 <div class="toast" id="toast" hidden></div>
-<script src="switcher.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
+<script src="/switcher.js"></script>
 </body>
 </html>

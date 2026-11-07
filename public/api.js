@@ -53,5 +53,12 @@ window.API = (() => {
     gameScores: () => req('GET', '/api/games/scores'),
     saveGameScore: (round) => req('POST', '/api/games/scores', { json: round }),
     gameWords: () => req('GET', '/api/games/words'),
+
+    /* Comic Maker */
+    listComics: () => req('GET', '/api/comics'),
+    createComic: (story, signal) => req('POST', '/api/comics', { json: { story }, signal }),
+    getComic: (id) => req('GET', `/api/comics/${enc(id)}`),
+    drawComic: (id, slot, redo) => req('POST', `/api/comics/${enc(id)}/draw/${enc(slot)}${redo ? '?redo=1' : ''}`),
+    deleteComic: (id) => req('DELETE', `/api/comics/${enc(id)}`),
   };
 })();

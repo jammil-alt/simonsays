@@ -12,7 +12,7 @@
 <body>
 <header class="topbar">
   <span></span>
-  <div class="tools"><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button><details class="switcher"><summary class="pbtn" aria-label="Switch between Homework and Typing Arcade"><span>ARCADE</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/" aria-current="page"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details></div>
+  <div class="tools"><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button><details class="switcher" data-current="arcade" data-upper="1" data-summary-class="pbtn"></details></div>
 </header>
 <main class="hub">
   <h1 class="logo">TYPING<br>ARCADE</h1>
@@ -33,7 +33,6 @@
   </div>
   <p class="tip">Rest your pointer fingers on <b>F</b> and <b>J</b>.<br>Feel the little bumps? That's home!</p>
 </main>
-<script src="/switcher.js"></script>
 <script src="/api.js"></script>
 <script src="/games/shared.js"></script>
 <script>
@@ -84,5 +83,6 @@
   requestAnimationFrame(loop);
 })();
 </script>
+<script src="/switcher.js"></script>
 </body>
 </html>

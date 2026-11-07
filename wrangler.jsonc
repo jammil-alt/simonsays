@@ -36,6 +36,11 @@
     "CLAUDE_MODEL": "claude-opus-5-5",
     // low | medium | high. Reading a worksheet rarely needs more than medium.
     "CLAUDE_EFFORT": "medium",
+    // Comic Maker. Art uses Gemini ("Nano Banana Pro"); add the GEMINI_API_KEY secret to turn it on.
+    // Check the current model id in Google AI Studio and change it here if Google renames it.
+    "GEMINI_IMAGE_MODEL": "gemini-3-pro-image-preview",
+    // How many comics Simon can make per day.
+    "COMIC_DAILY_LIMIT": "3",
     // Cloudflare Access. The API refuses every request until both are set
     // (local dev skips this with DEV_NO_ACCESS=1 in .dev.vars).
     // ACCESS_TEAM_DOMAIN looks like "yourfamily.cloudflareaccess.com".

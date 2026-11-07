@@ -3,6 +3,13 @@ export interface Env {
   PAGES: R2Bucket;
   ASSETS: Fetcher;
   ANTHROPIC_API_KEY?: string;
+  /** Comic Maker art (Gemini "Nano Banana Pro"). Without it, comics show as text panels. */
+  GEMINI_API_KEY?: string;
+  GEMINI_IMAGE_MODEL?: string;
+  /** Comics Simon can make per day (parents set this in wrangler.jsonc / the dashboard). */
+  COMIC_DAILY_LIMIT?: string;
+  /** "1" in .dev.vars only: fake Claude and Gemini so the Comic Maker runs locally without keys. */
+  MOCK_AI?: string;
   CLAUDE_MODEL: string;
   CLAUDE_EFFORT?: string;
   ACCESS_TEAM_DOMAIN?: string;

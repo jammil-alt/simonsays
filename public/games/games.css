@@ -96,7 +96,7 @@ a{color:inherit}
 .tip b{color:var(--f-pointer)}
 /* app switcher (top right) */
 .switcher{position:relative}
-.switcher summary{list-style:none;user-select:none;-webkit-user-select:none}
+.switcher summary{list-style:none;white-space:nowrap;user-select:none;-webkit-user-select:none}
 .switcher summary::-webkit-details-marker{display:none}
 .switcher .chev{width:12px;height:12px}
 .switcher[open] .chev{transform:rotate(180deg)}

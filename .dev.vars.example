@@ -3,3 +3,5 @@
 DEV_NO_ACCESS=1
 # Optional locally: without it, "Make clean copy" shows a "not set up" message.
 ANTHROPIC_API_KEY=
+# Fake Claude and Gemini for the Comic Maker so it runs locally without keys. Never set this in production.
+MOCK_AI=1
