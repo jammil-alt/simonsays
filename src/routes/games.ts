@@ -42,7 +42,7 @@ const SKIP = new Set(
 const clean = (w: string) => w.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "");
 const ok = (w: string) => /^[a-z]{2,10}$/.test(w);
 
-type Item = { type?: string; words?: unknown[]; options?: unknown[]; text?: string; prompt?: string; parts?: unknown[] };
+type Item = { type?: string; words?: unknown[]; options?: unknown[]; rows?: unknown[]; text?: string; prompt?: string; parts?: unknown[] };
 type Sheet = { title?: string; instructions?: string; sections?: { heading?: string; instructions?: string; items?: Item[] }[] };
 
 /** Pull practice words out of clean-copy JSON: word banks and choices first, then other words as filler. */
@@ -58,6 +58,11 @@ export function extractWords(sheets: Sheet[], max = 40): string[] {
       for (const it of sec.items ?? []) {
         if (it.type === "wordbank") for (const w of it.words ?? []) { const c = clean(String(w)); if (ok(c)) strong.push(c); }
         else if (it.type === "choice") for (const o of it.options ?? []) { const c = clean(String(o)); if (ok(c) && !/\s/.test(String(o).trim())) strong.push(c); }
+        else if (it.type === "table") {
+          for (const row of it.rows ?? []) if (Array.isArray(row)) for (const c of row) {
+            if (typeof c === "string") { const w = clean(c); if (ok(w) && !/\s/.test(c.trim())) strong.push(w); else addWeak(c); }
+          }
+        }
         else { addWeak(it.text); addWeak(it.prompt); for (const p of it.parts ?? []) addWeak(p); }
       }
     }

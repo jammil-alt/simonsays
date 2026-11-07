@@ -18,6 +18,7 @@ const ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
   wand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
+  eraser: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21h13M5.5 14.5l7-7a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8l-2.5-2.5a2 2 0 0 1 0-2.8zM9 11l5 5"/></svg>',
   cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
 };
 
@@ -422,9 +423,42 @@ async function cleanAll() {
   for (const p of pages) { if (currentId === a.id) await makeClean(p.id); }
 }
 
-/* unchanged from the prototype */
+/* ---------- crayons ---------- */
+// Tap a word cell or a choice to colour it. Saved as a typed value: "3:yellow,7:green" (cell index : crayon).
+// A bare index ("2") is a choice picked before crayons existed; it shows in the old blue.
+const CRAYONS = { yellow: '#FFE066', orange: '#FFC078', pink: '#FAA2C1', purple: '#D0BFFF', blue: '#74C0FC', green: '#8CE99A' };
+let crayon = 'yellow';
+try { const c = localStorage.getItem('hw:crayon'); if (c in CRAYONS || c === 'erase') crayon = c; } catch {}
+function parsePaint(v) {
+  const m = new Map();
+  for (const part of String(v ?? '').split(',')) {
+    const [k, c] = part.split(':');
+    if (/^\d+$/.test(k)) m.set(k, c in CRAYONS ? c : '');
+  }
+  return m;
+}
+const paintStr = m => [...m].map(([k, c]) => c ? `${k}:${c}` : k).join(',');
+function showPaint(g, m) {
+  g.querySelectorAll('[data-k]').forEach(b => {
+    const on = m.has(b.dataset.k), c = CRAYONS[m.get(b.dataset.k)];
+    b.setAttribute('aria-pressed', on);
+    b.classList.toggle('painted', on && !!c);
+    if (on && c) b.style.setProperty('--paint', c); else b.style.removeProperty('--paint');
+  });
+}
+function crayonsHTML() {
+  return `<div class="crayons" role="radiogroup" aria-label="Crayons">${Object.entries(CRAYONS).map(([name, c]) =>
+    `<button type="button" class="crayon" role="radio" data-c="${name}" style="--c:${c}" aria-checked="${crayon === name}" aria-label="${name}"></button>`).join('')}
+    <button type="button" class="crayon erase" role="radio" data-c="erase" aria-checked="${crayon === 'erase'}" aria-label="Eraser">${ICON.eraser}</button></div>`;
+}
+function setCrayon(c) {
+  crayon = c;
+  try { localStorage.setItem('hw:crayon', c); } catch {}
+  document.querySelectorAll('.crayon').forEach(b => b.setAttribute('aria-checked', b.dataset.c === c));
+}
+
 function renderWorksheet(d, pid) {
-  let n = 0;
+  let n = 0, paints = false;
   const T = s => esc(s ?? '');
   const blank = (b) => {
     const kind = ['number', 'word', 'sentence'].includes(b?.blank) ? b.blank : 'word';
@@ -440,31 +474,56 @@ function renderWorksheet(d, pid) {
         return `<div class="it it-vert">${lbl(it)}<div class="vert">${rows.map(r => `<div>${T(r)}</div>`).join('')}<div class="row2"><span>${T(it.op)}</span><span>${T(last)}</span></div>${blank({ blank: 'number' })}</div></div>`;
       }
       case 'write': { const id = 'w' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><textarea class="lined" data-f="${id}" rows="${Math.max(2, Math.min(12, +it.lines || 3))}" aria-label="Writing answer"></textarea></div></div>`; }
-      case 'choice': { const id = 'c' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts" data-f="${id}" role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'choice': { const id = 'c' + (n++); paints = true; return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts paint" data-f="${id}"${it.many ? ' data-many="1"' : ''} role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'table': {
+        const rows = (Array.isArray(it.rows) ? it.rows : []).filter(Array.isArray);
+        if (!rows.length) return '';
+        const cols = Math.max(...rows.map(r => r.length)), mark = ['color', 'circle', 'cross'].includes(it.pick) ? it.pick : '';
+        const id = 't' + (n++); let k = 0;
+        const cell = c => {
+          if (typeof c === 'string' || typeof c === 'number') return `<td><button type="button" class="cell" data-k="${k++}" aria-pressed="false">${T(String(c))}</button></td>`;
+          if (Array.isArray(c)) return `<td class="mixed"><span class="flow">${c.map(p => typeof p === 'string' ? `<span>${T(p)}</span>` : blank(p)).join('')}</span></td>`;
+          if (c?.blank) return `<td class="mixed">${blank(c)}</td>`;
+          return '<td></td>';
+        };
+        const body = rows.map(r => `<tr>${r.map(cell).join('')}${'<td></td>'.repeat(cols - r.length)}</tr>`).join('');
+        if (k) paints = true;
+        // Any word cell can be coloured; it only counts as a question when the sheet says to colour/circle/cross cells.
+        return `<table class="ws-table${k ? ' paint' : ''}"${k ? ` data-f="${id}" data-many="1"${mark ? ` data-mark="${mark}"` : ' data-count="0"'}` : ''}><tbody>${body}</tbody></table>`;
+      }
       case 'wordbank': return `<div class="bank" aria-label="Word bank">${(it.words || []).map(w => `<span>${T(w)}</span>`).join('')}</div>`;
       case 'text': return `<p class="para">${T(it.text)}</p>`;
       case 'figure': return `<div class="fig"><span>Picture on the worksheet: ${T(it.description)}</span><button class="btn" type="button" data-show-photo>Show photo</button></div>`;
       default: return it?.text ? `<p class="para">${T(it.text)}</p>` : '';
     }
   };
+  const sections = (d.sections || []).map(s => {
+    const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
+    // Older clean copies often repeat the heading as the instructions; show it once.
+    const instr = s.instructions && s.instructions.trim() !== (s.heading || '').trim() ? s.instructions : '';
+    paints = false;
+    const body = items.map(item).join('');
+    // Crayons sit at the top of a section that has something to colour, and stay in view while it's on screen.
+    return `<section class="ws-sec">${paints ? crayonsHTML() : ''}${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${instr ? `<p class="ws-instr">${T(instr)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${body}</div></section>`;
+  }).join('');
   return `<div class="ws">
     ${d.title ? `<h2 class="ws-title">${T(d.title)}</h2>` : ''}
     ${d.instructions ? `<p class="ws-instr">${T(d.instructions)}</p>` : ''}
-    ${(d.sections || []).map(s => {
-      const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
-      return `<section class="ws-sec">${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${s.instructions ? `<p class="ws-instr">${T(s.instructions)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${items.map(item).join('')}</div></section>`;
-    }).join('')}
+    ${sections}
   </div>`;
 }
 
 function wireWorksheet(box, pid) {
   const sec = box.closest('.page');
   box.querySelectorAll('input[data-f],textarea[data-f]').forEach(el => el.addEventListener('input', () => setTyped(pid, el.dataset.f, el.value, sec)));
-  box.querySelectorAll('.opts').forEach(g => g.querySelectorAll('.opt').forEach(b => b.onclick = () => {
-    const now = b.getAttribute('aria-pressed') === 'true' ? '' : b.dataset.k;
-    g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === now));
-    setTyped(pid, g.dataset.f, now, sec);
+  box.querySelectorAll('.paint[data-f]').forEach(g => g.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    const f = g.dataset.f, m = parsePaint((typedMap.get(pid) || {})[f]), k = b.dataset.k;
+    if (crayon === 'erase' || (m.has(k) && (m.get(k) || 'yellow') === crayon)) m.delete(k);
+    else { if (!g.dataset.many) m.clear(); m.set(k, crayon); }
+    setTyped(pid, f, paintStr(m), sec);
+    showPaint(g, m);
   }));
+  box.querySelectorAll('.crayon').forEach(b => b.onclick = () => setCrayon(b.dataset.c));
   box.querySelectorAll('[data-show-photo]').forEach(b => b.onclick = () => { viewMode.set(pid, 'photo'); refreshPage(sec); });
 }
 
@@ -483,7 +542,7 @@ function setTyped(pid, f, v, sec) {
 function fillTyped(sec) {
   const vals = typedMap.get(sec.dataset.page) || {};
   sec.querySelectorAll('.clean input[data-f], .clean textarea[data-f]').forEach(el => { if (document.activeElement !== el && el.value !== (vals[el.dataset.f] || '')) el.value = vals[el.dataset.f] || ''; });
-  sec.querySelectorAll('.clean .opts').forEach(g => g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === String(vals[g.dataset.f] ?? ''))));
+  sec.querySelectorAll('.clean .paint[data-f]').forEach(g => showPaint(g, parsePaint(vals[g.dataset.f])));
   updateProgress(sec);
 }
 
@@ -491,7 +550,7 @@ function updateProgress(sec) {
   const pr = sec.querySelector('.prog'); if (!pr) return;
   const box = sec.querySelector('.clean');
   if (box.hidden || !cleanMap.has(sec.dataset.page)) { pr.textContent = ''; return; }
-  const fields = box.querySelectorAll('[data-f]'); const vals = typedMap.get(sec.dataset.page) || {};
+  const fields = box.querySelectorAll('[data-f]:not([data-count="0"])'); const vals = typedMap.get(sec.dataset.page) || {};
   const done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
   pr.textContent = fields.length ? ` · ${done} of ${fields.length} answered` : '';
 }
