@@ -581,7 +581,16 @@ async function imageFileToCanvas(file) {
   return c;
 }
 
-async function addFiles(files, target) {
+// Batches run one after another, so picking more photos mid-upload keeps the page order.
+let uploadQueue = Promise.resolve();
+function addFiles(files, target) {
+  const dest = target || currentId; // a Promise<id> from "New", or the open assignment's id
+  const run = uploadQueue.then(() => addFilesNow(files, dest));
+  uploadQueue = run.catch(() => {});
+  return run;
+}
+
+async function addFilesNow(files, dest) {
   const jobs = [];
   for (const f of files) {
     if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) jobs.push({ pdf: f });
@@ -589,22 +598,26 @@ async function addFiles(files, target) {
   }
   if (!jobs.length) return toast('Pick photos or a PDF.');
   let id;
-  try { id = target ? await target : currentId; } catch { return; }
+  try { id = await dest; } catch { return; }
   if (!id) return;
   const added = [];
-  try {
-    // expand PDFs to per-page jobs
-    const flat = [];
-    for (const j of jobs) {
-      if (j.img) { flat.push(j); continue; }
+  let failed = 0, lastErr = null;
+  // Each photo or PDF page is its own try, so one bad file doesn't stop the rest.
+  const fail = (e, n = 1) => { failed += n; lastErr = e; console.warn('upload failed', e); };
+  const flat = [];
+  for (const j of jobs) {
+    if (j.img) { flat.push(j); continue; }
+    try {
       setBusy('Opening PDF…', 0);
       const lib = await loadPdf();
       const doc = await lib.getDocument({ data: await j.pdf.arrayBuffer() }).promise;
       for (let n = 1; n <= doc.numPages; n++) flat.push({ pdfDoc: doc, n });
-    }
-    for (let k = 0; k < flat.length; k++) {
-      setBusy(`Adding page ${k + 1} of ${flat.length}…`, k / flat.length);
-      const j = flat[k];
+    } catch (e) { fail(e); }
+  }
+  for (let k = 0; k < flat.length; k++) {
+    setBusy(`Adding page ${k + 1} of ${flat.length}…`, k / flat.length);
+    const j = flat[k];
+    try {
       let c;
       if (j.img) c = await imageFileToCanvas(j.img);
       else {
@@ -615,15 +628,18 @@ async function addFiles(files, target) {
         const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
         await page.render({ canvasContext: g, viewport: vp }).promise;
       }
+      const { width: w, height: h } = c;
       const blob = await canvasToBlob(c);
-      added.push(await API.uploadPage(id, blob, c.width, c.height));
-    }
-    setBusy(null);
-    toast(added.length === 1 ? 'Page added' : added.length + ' pages added');
-  } catch (e) {
-    setBusy(null);
-    toast((added.length ? 'Some pages did not upload' : 'The pages did not upload') + ' (' + (e?.code || e?.message || 'error') + ')');
+      c.width = c.height = 0; // free the pixels before the next photo (matters on iPhone)
+      added.push(await API.uploadPage(id, blob, w, h));
+    } catch (e) { fail(e); }
   }
+  setBusy(null);
+  const code = lastErr ? ' (' + (lastErr.code || lastErr.message || 'error') + ')' : '';
+  const pages = n => n === 1 ? '1 page' : n + ' pages';
+  if (!failed) toast(added.length === 1 ? 'Page added' : added.length + ' pages added');
+  else if (added.length) toast(`${pages(added.length)} added, ${pages(failed)} did not upload${code}`);
+  else toast((failed === 1 ? 'The page did not upload' : 'The pages did not upload') + code);
   if (!added.length) return;
   const a = cur();
   if (a && a.id === id) {
