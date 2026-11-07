@@ -9,7 +9,7 @@ it as a clean copy with boxes to type in, or you can tap anywhere on the photo t
 - **Comic Maker:** `/comic/`. Simon types a story and gets a 4–6 panel comic with read-aloud. Claude writes the
   script, Gemini draws it, and the words are laid over the pictures so they're always spelled right.
 - **Live:** https://simonswork.app
-- **Set up Cloudflare:** [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md)
+- **Set up Cloudflare:** [docs/CLOUDFLARE_SETUP.md](docs/CLOUDFLARE_SETUP.md) · browser-agent prompts: [docs/BROWSER_PROMPTS.md](docs/BROWSER_PROMPTS.md)
 - **Plan / roadmap:** [docs/PLAN.md](docs/PLAN.md)
 
 ## Run locally
