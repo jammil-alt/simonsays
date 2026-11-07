@@ -36,6 +36,8 @@
     "CLAUDE_MODEL": "claude-opus-5-5",
     // low | medium | high. Reading a worksheet rarely needs more than medium.
     "CLAUDE_EFFORT": "medium",
+    // Small, cheap model that reads 1–3 tags (subject, topic) off each uploaded page for the sidebar filter.
+    "CLAUDE_TAG_MODEL": "claude-haiku-5-5",
     // Cloudflare Access. The API refuses every request until both are set
     // (local dev skips this with DEV_NO_ACCESS=1 in .dev.vars).
     // ACCESS_TEAM_DOMAIN looks like "yourfamily.cloudflareaccess.com".

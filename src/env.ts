@@ -5,6 +5,8 @@ export interface Env {
   ANTHROPIC_API_KEY?: string;
   CLAUDE_MODEL: string;
   CLAUDE_EFFORT?: string;
+  /** Small model that reads tags off each page photo. */
+  CLAUDE_TAG_MODEL?: string;
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
   /** Set to "1" in .dev.vars only. Lets `wrangler dev` run without Cloudflare Access. */
