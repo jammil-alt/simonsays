@@ -80,6 +80,20 @@ and wait for me to type it).
 Don't delete the comic. Finish with a short report I can paste to Claude Code.
 ```
 
+## 4b. Test the read-aloud voices
+
+```text
+Open https://simonswork.app/comic/#/library and open the newest comic.
+1. Turn the computer's sound on. Click "Read it to me". The button should say "Warming up the voices…" for a
+   few seconds, then "Stop reading", and panels should light up one after another.
+2. Tell me: did the narrator and each character sound different? Did any line sound like it read out an
+   instruction (for example the words "Say it like…") instead of just the story? Did it stop partway?
+3. Click "Read it to me" again: it should start right away this time.
+4. If it fell back to the old robotic voice, open Workers & Pages → homework-desk → Observability (or Logs)
+   and copy any error lines that mention "gemini tts" or "voice", word for word.
+Finish with a short report I can paste to Claude Code.
+```
+
 ## 5. If something fails: read the Worker logs
 
 ```text

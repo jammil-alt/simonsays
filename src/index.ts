@@ -4,7 +4,7 @@ import { deleteAnswer, putAnswer, putTyped } from "./routes/answers";
 import { createAssignment, deleteAssignment, getAssignment, listAssignments, updateAssignment } from "./routes/assignments";
 import { fixClean, makeClean, unfixClean } from "./routes/clean";
 import { getScores, getWords, saveScore } from "./routes/games";
-import { createComic, deleteComic, drawSlot, getComic, listComics } from "./routes/comics";
+import { comicVoice, comicVoiceLine, createComic, deleteComic, drawSlot, getComic, listComics } from "./routes/comics";
 import { addPage, deletePage, movePage, serveImage } from "./routes/pages";
 import { autoTag, putTags } from "./routes/tags";
 
@@ -34,6 +34,8 @@ const routes: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/comics\/([^/]+)$/, (_r, env, [id]) => getComic(env, id)],
   ["DELETE", /^\/api\/comics\/([^/]+)$/, (_r, env, [id]) => deleteComic(env, id)],
   ["POST", /^\/api\/comics\/([^/]+)\/draw\/([^/]+)$/, (r, env, [id, slot]) => drawSlot(r, env, id, slot)],
+  ["POST", /^\/api\/comics\/([^/]+)\/voice$/, (_r, env, [id]) => comicVoice(env, id)],
+  ["POST", /^\/api\/comics\/([^/]+)\/voice\/([^/]+)$/, (_r, env, [id, k]) => comicVoiceLine(env, id, k)],
   ["GET", /^\/img\/(.+)$/, (r, env, [key]) => serveImage(r, env, key)],
 ];
 

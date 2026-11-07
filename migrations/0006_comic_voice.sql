@@ -1,0 +1,3 @@
+-- Comic Maker read-aloud: the voice plan (who sounds like what, and how to say each line).
+-- The audio clips themselves are stored like pictures, as comic_images slots voice-0, voice-1, …
+ALTER TABLE comics ADD COLUMN voice TEXT;

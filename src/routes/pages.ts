@@ -3,7 +3,7 @@ import { requireAssignment } from "./assignments";
 
 const MAX_BYTES = 15 * 1024 * 1024;
 // Worksheet pages, and Comic Maker pictures (comics/<id>/<slot>-<suffix>.<ext>).
-const KEY_RE = /^(?:[a-z0-9]{6,40}\/[a-z0-9]{6,40}\.jpg|comics\/[a-z0-9]{6,40}\/(?:char|panel)-\d-[a-z0-9]{4,12}\.(?:png|jpg|webp|svg))$/;
+const KEY_RE = /^(?:[a-z0-9]{6,40}\/[a-z0-9]{6,40}\.jpg|comics\/[a-z0-9]{6,40}\/(?:(?:char|panel)-\d-[a-z0-9]{4,12}\.(?:png|jpg|webp|svg)|voice-\d{1,2}-[a-z0-9]{4,12}\.(?:wav|mp3|ogg|webm)))$/;
 
 type PageRow = { id: string; assignment_id: string; position: number; r2_key: string; w: number; h: number };
 

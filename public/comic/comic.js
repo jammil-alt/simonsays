@@ -173,7 +173,7 @@ function renderComic(c) {
       <div class="row"><button class="btn quiet" type="button" id="redoArt" ${c.art ? '' : 'hidden'}>Redraw all pictures</button><button class="btn quiet" type="button" id="delBtn">Delete this comic</button></div>
     </details>
   </article>`);
-  $('#readBtn').onclick = () => (speechSynthesis.speaking ? stopReading() : readAloud());
+  $('#readBtn').onclick = () => (reading ? stopReading() : readAloud());
   app.querySelectorAll('.panel[data-i]').forEach(f => f.addEventListener('click', e => {
     if (e.target.closest('button') || f.dataset.i === 'end') return;
     readAloud(+f.dataset.i);
@@ -255,46 +255,105 @@ async function deleteComic(c) {
   location.hash = '#/library';
 }
 
-/* ---------- read aloud (the browser's own voice, free) ---------- */
-let voice = null;
-function pickVoice() {
-  const vs = speechSynthesis.getVoices();
-  return vs.find(v => /^en[-_]US/i.test(v.lang) && v.localService) || vs.find(v => /^en/i.test(v.lang)) || null;
-}
-if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = () => { voice = pickVoice(); };
+/* ---------- read aloud ----------
+   Real voices: the Worker's voice director gives every character a voice and every line a direction,
+   and Gemini performs each line once (kept with the comic, so re-reading is instant and free).
+   If voices aren't available, it falls back to the browser's own (robotic) voice. */
+let reading = null;               // the read-aloud in progress: { stopped, source }
+let audioCtx = null;
 
+function setReadBtn(text) { const b = $('#readBtn'); if (b) b.textContent = text; }
 function highlight(i) {
   app.querySelectorAll('.panel.reading').forEach(p => p.classList.remove('reading'));
-  const el = i == null ? null : app.querySelector(`.panel[data-i="${i}"]`);
+  const el = i == null || i === 'title' ? null : app.querySelector(`.panel[data-i="${i}"]`);
   if (el) { el.classList.add('reading'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 }
 function stopReading() {
-  if (!('speechSynthesis' in window)) return;
-  speechSynthesis.cancel(); highlight(null);
-  const b = $('#readBtn'); if (b) b.textContent = 'Read it to me';
+  if (reading) { reading.stopped = true; try { reading.source?.stop(); } catch {} reading = null; }
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  highlight(null); setReadBtn('Read it to me');
 }
-function readAloud(only) {
-  if (!('speechSynthesis' in window)) return toast("This browser can't read out loud.");
-  const c = current; if (!c) return;
-  speechSynthesis.cancel();
-  voice = voice || pickVoice();
-  const s = c.script, parts = [];
-  if (only == null) parts.push({ text: s.title, i: null });
-  for (const [i, p] of s.panels.entries()) {
-    if (only != null && i !== only) continue;
-    if (p.caption) parts.push({ text: p.caption, i });
-    for (const d of p.dialogue) parts.push({ text: `${d.speaker} says: ${d.text}`, i });
-  }
-  if (only == null) parts.push({ text: 'The End.', i: 'end' });
-  const b = $('#readBtn'); if (b) b.textContent = 'Stop reading';
-  parts.forEach((part, k) => {
-    const u = new SpeechSynthesisUtterance(part.text);
-    if (voice) u.voice = voice;
-    u.rate = 0.92; u.pitch = 1.05;
-    u.onstart = () => highlight(part.i);
-    if (k === parts.length - 1) u.onend = () => { highlight(null); const b2 = $('#readBtn'); if (b2) b2.textContent = 'Read it to me'; };
-    speechSynthesis.speak(u);
+/** Must run inside the tap itself: iPads only allow sound that starts from a tap. */
+function unlockAudio() {
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+  if (!audioCtx) audioCtx = new AC();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const b = audioCtx.createBuffer(1, 1, 22050), src = audioCtx.createBufferSource();   // silent blip to wake it up
+  src.buffer = b; src.connect(audioCtx.destination); src.start(0);
+  return audioCtx;
+}
+function playBuffer(ac, buf, run) {
+  return new Promise(res => {
+    const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination);
+    src.onended = () => res(); run.source = src; src.start(0);
   });
+}
+function browserSay(text) {
+  return new Promise(res => {
+    if (!('speechSynthesis' in window)) return res();
+    const u = new SpeechSynthesisUtterance(text); u.rate = 0.92; u.pitch = 1.05;
+    u.onend = u.onerror = () => res(); speechSynthesis.speak(u);
+  });
+}
+function scriptLinesForBrowser(c) {
+  const out = [{ panel: 'title', who: 'Narrator', text: c.script.title }];
+  c.script.panels.forEach((p, i) => {
+    if (p.caption) out.push({ panel: i, who: 'Narrator', text: p.caption });
+    for (const d of p.dialogue) out.push({ panel: i, who: d.speaker, text: `${d.speaker} says: ${d.text}` });
+  });
+  out.push({ panel: 'end', who: 'Narrator', text: 'The End.' });
+  return out;
+}
+
+async function readAloud(only) {
+  const c = current; if (!c) return;
+  stopReading();
+  const run = { stopped: false, source: null }; reading = run;
+  const ac = unlockAudio();
+  setReadBtn('Stop reading');
+  const wanted = l => only == null || l.panel === only;
+
+  let plan = null;
+  if (ac && c.voice !== false) {
+    if (!c.voice) setReadBtn('Warming up the voices…');
+    try { plan = c.voice || (c.voice = await API.comicVoice(c.id)); }
+    catch (e) { if (e.code === 'voice_off') c.voice = false; plan = null; }
+    if (run.stopped) return;
+    setReadBtn('Stop reading');
+  }
+  if (!plan) {                                   // fallback: the browser's own voice
+    for (const l of scriptLinesForBrowser(c).filter(wanted)) {
+      if (run.stopped) return;
+      highlight(l.panel); await browserSay(l.text);
+    }
+    if (!run.stopped) stopReading();
+    return;
+  }
+
+  const lines = plan.lines.filter(wanted);
+  const clips = new Map();
+  const clip = l => {                            // record (once) and decode one line, cached per comic
+    if (!clips.has(l.k)) clips.set(l.k, (async () => {
+      if (!l.key) l.key = (await API.comicVoiceLine(c.id, l.k)).key;
+      const r = await fetch('/img/' + l.key);
+      if (!r.ok) throw new Error('clip ' + r.status);
+      return ac.decodeAudioData(await r.arrayBuffer());
+    })());
+    return clips.get(l.k);
+  };
+  for (let n = 0; n < lines.length; n++) {
+    if (run.stopped) return;
+    lines.slice(n, n + 4).forEach(l => clip(l).catch(() => {}));   // stay a few lines ahead
+    const l = lines[n];
+    let buf = null;
+    try { buf = await clip(l); } catch { buf = null; }
+    if (run.stopped) return;
+    highlight(l.panel);
+    if (buf) await playBuffer(ac, buf, run);
+    else await browserSay(l.who === 'Narrator' ? l.text : `${l.who} says: ${l.text}`);   // one line failed: don't stop the story
+    await new Promise(r => setTimeout(r, l.panel !== lines[n + 1]?.panel ? 350 : 120)); // a breath between panels
+  }
+  if (!run.stopped) stopReading();
 }
 
 /* ---------- library ---------- */

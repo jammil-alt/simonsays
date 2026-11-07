@@ -41,6 +41,9 @@
     // Comic Maker. Art uses Gemini ("Nano Banana Pro"); add the GEMINI_API_KEY secret to turn it on.
     // Check the current model id in Google AI Studio and change it here if Google renames it.
     "GEMINI_IMAGE_MODEL": "gemini-3-pro-image-preview",
+    // Read-aloud voices (Gemini text-to-speech). If this id isn't found, the Worker tries
+    // gemini-2.5-flash-preview-tts on its own. Uses the same GEMINI_API_KEY.
+    "GEMINI_TTS_MODEL": "gemini-3.1-flash-tts-preview",
     // How many comics Simon can make per day.
     "COMIC_DAILY_LIMIT": "3",
     // Cloudflare Access. The API refuses every request until both are set

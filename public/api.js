@@ -68,5 +68,7 @@ window.API = (() => {
     getComic: (id) => req('GET', `/api/comics/${enc(id)}`),
     drawComic: (id, slot, redo) => req('POST', `/api/comics/${enc(id)}/draw/${enc(slot)}${redo ? '?redo=1' : ''}`),
     deleteComic: (id) => req('DELETE', `/api/comics/${enc(id)}`),
+    comicVoice: (id) => req('POST', `/api/comics/${enc(id)}/voice`),
+    comicVoiceLine: (id, k) => req('POST', `/api/comics/${enc(id)}/voice/${k}`),
   };
 })();

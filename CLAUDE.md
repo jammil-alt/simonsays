@@ -23,7 +23,8 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 - `src/routes/games.ts` — game scores and the "My homework" word list (pulled from clean copies).
 - Comic Maker (`/comic/`, plan in `docs/COMIC_PLAN.md`): `public/comic/` (one page, hash routes `#/`, `#/c/<id>`,
   `#/library`), `src/routes/comics.ts`, `src/comic-prompt.ts` (script prompt, JSON schema, content rules, word list,
-  image prompts), `src/gemini.ts` (Nano Banana Pro images), `src/comic-mock.ts` (fake AI for local dev).
+  image prompts), `src/gemini.ts` (Nano Banana Pro images), `src/voice.ts` (read-aloud: voice director + Gemini
+  text-to-speech), `src/comic-mock.ts` (fake AI for local dev).
 
 ## Rules
 - All reads and writes go through `/api/*`. The client never calls Anthropic directly; the key is a Worker secret.
@@ -44,6 +45,10 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   over the art, so spelling is exact. The script JSON shape is a contract between `src/comic-prompt.ts` and
   `public/comic/comic.js`. Keep it calm: no points, streaks or timers; the daily cap is `COMIC_DAILY_LIMIT`.
   Without `GEMINI_API_KEY` comics show as text panels.
+- Read-aloud: POST /api/comics/:id/voice makes the voice plan once (CLAUDE_TAG_MODEL picks a Gemini voice per
+  speaker and a "Say …" direction per line; lines come from `scriptLines()` so their numbers are stable), then
+  POST /api/comics/:id/voice/:k records line k once (GEMINI_TTS_MODEL, PCM wrapped as WAV, stored as slot voice-k).
+  The page plays clips with Web Audio, unlocked inside the tap (iPad rule), and falls back to speechSynthesis.
 - Games are for a beginner on a physical keyboard: every level shows the next key and which finger to use.
   Level ids in `public/games/shared.js` (LEVELS) must match the allow-list in `src/routes/games.ts`.
   Letters are shown UPPERCASE (like the keycaps); words are lowercase.
