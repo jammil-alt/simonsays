@@ -306,6 +306,7 @@ function boot(def) {
 
   document.addEventListener('keydown', e => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (document.querySelector('details.switcher[open]')) return;   // the app switcher has the keyboard
     const k = e.key;
     if (state === 'play') {
       if (k === 'Escape') { e.preventDefault(); return pause(); }

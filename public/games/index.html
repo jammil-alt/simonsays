@@ -11,21 +11,20 @@
 </head>
 <body>
 <header class="topbar">
-  <a class="pbtn" href="/">&lt; HOMEWORK</a>
   <span></span>
-  <div class="tools"><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button></div>
+  <div class="tools"><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button><details class="switcher"><summary class="pbtn" aria-label="Switch between Homework and Typing Arcade"><span>ARCADE</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/" aria-current="page"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details></div>
 </header>
 <main class="hub">
   <h1 class="logo">TYPING<br>ARCADE</h1>
   <p class="blink">PICK A GAME</p>
   <div class="cards">
-    <a class="card" href="/games/letter-lane.html" data-game="letter-lane">
+    <a class="card" href="/games/letter-lane" data-game="letter-lane">
       <canvas width="160" height="90" data-scene="road" aria-hidden="true"></canvas>
       <h2>LETTER LANE</h2>
       <p>Ducks on the road! Type the letter on the sign to zoom past before the clock runs out.</p>
       <span class="stars" data-stars></span>
     </a>
-    <a class="card" href="/games/meteor-words.html" data-game="meteor-words">
+    <a class="card" href="/games/meteor-words" data-game="meteor-words">
       <canvas width="160" height="90" data-scene="space" aria-hidden="true"></canvas>
       <h2>METEOR WORDS</h2>
       <p>Meteors are falling on the town! Type what's on them to zap them with the laser.</p>
@@ -34,6 +33,7 @@
   </div>
   <p class="tip">Rest your pointer fingers on <b>F</b> and <b>J</b>.<br>Feel the little bumps? That's home!</p>
 </main>
+<script src="/switcher.js"></script>
 <script src="/api.js"></script>
 <script src="/games/shared.js"></script>
 <script>

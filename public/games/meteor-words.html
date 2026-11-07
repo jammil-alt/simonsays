@@ -13,11 +13,12 @@
 <header class="topbar">
   <a class="pbtn" href="/games/">&lt; ARCADE</a>
   <h1>METEOR WORDS</h1>
-  <div class="tools"><button class="pbtn" type="button" id="helpBtn">KEYS: ON</button><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button></div>
+  <div class="tools"><button class="pbtn" type="button" id="helpBtn">KEYS: ON</button><button class="pbtn" type="button" id="muteBtn">SOUND: ON</button><details class="switcher"><summary class="pbtn" aria-label="Switch between Homework and Typing Arcade"><span>ARCADE</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/" aria-current="page"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details></div>
 </header>
 <div class="stage"><canvas id="screen" width="320" height="180" aria-label="METEOR WORDS game screen"></canvas><div class="overlay" id="overlay"><div class="panel small"><p class="tag">LOADING…</p></div></div></div>
 <div class="kbd" id="kbd"></div>
 <div class="legend"><span style="--c:var(--f-pinky)">PINKY</span><span style="--c:var(--f-ring)">RING</span><span style="--c:var(--f-middle)">MIDDLE</span><span style="--c:var(--f-pointer)">POINTER</span></div>
+<script src="/switcher.js"></script>
 <script src="/api.js"></script>
 <script src="/games/shared.js"></script>
 <script src="/games/meteor-words.js"></script>

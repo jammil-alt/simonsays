@@ -48,8 +48,6 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .pill{font:500 10px/1 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;padding:5px 7px;border:1px solid var(--stone-200);background:var(--stone-075);color:var(--stone-700);white-space:nowrap}
 .pill.todo{border-color:var(--clay-200);background:var(--clay-050);color:var(--clay-600)}
 .pill.done{border-color:var(--stone-900);background:var(--stone-900);color:var(--paper)}
-.side-foot{padding:12px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-bottom:max(12px,env(safe-area-inset-bottom,0px));border-top:1px solid var(--border-divider)}
-.btn.games{width:100%;text-decoration:none}
 .list-empty{padding:24px 16px;color:var(--text-secondary);font-size:13px}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer;transition:background 160ms,transform 120ms;white-space:nowrap}
@@ -68,7 +66,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 :focus-visible{outline:2px solid var(--action);outline-offset:2px}
 
 .main{overflow:auto;min-width:0;min-height:0}
-.main-inner{max-width:980px;margin:0 auto;padding-block:20px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+.main-inner{max-width:980px;margin:0 auto;padding-block:4px 80px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
 .back{display:none}
 .head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
 .title-wrap{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:6px}
@@ -164,11 +162,29 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .gen .err{color:var(--ox-700)}
 .offline{margin:24px;padding:12px 14px;border:1px solid var(--ox-200);background:var(--ox-050);color:var(--ox-700);border-radius:var(--r-md);font-size:13px}
 
+/* app switcher (top right) */
+.main-top{display:flex;justify-content:flex-end;padding:12px max(16px,env(safe-area-inset-right,0px)) 0 16px}
+.side-head .switcher{display:none}
+.side-head{flex-wrap:nowrap}
+.switcher{position:relative}
+.switcher summary{list-style:none;display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 8px 0 12px;border:1px solid var(--stone-250);border-radius:var(--r-sm);background:var(--surface-card);color:var(--text-primary);font-weight:600;font-size:13px;cursor:pointer;user-select:none;-webkit-user-select:none}
+.switcher summary::-webkit-details-marker{display:none}
+.switcher summary:hover{background:var(--surface-subtle)}
+.switcher .chev{width:16px;height:16px;opacity:.7;transition:transform 160ms}
+.switcher[open] .chev{transform:rotate(180deg)}
+.switcher-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:230px;display:flex;flex-direction:column;gap:2px;padding:4px;background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--r-md);box-shadow:var(--shadow-md)}
+.switcher-menu a{display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:var(--r-sm);color:var(--text-primary);text-decoration:none;font-size:13px}
+.switcher-menu a:hover{background:var(--surface-subtle)}
+.switcher-menu a[aria-current]{background:var(--selected-bg);color:var(--selected-fg)}
+.switcher-menu small{font-size:12px;color:var(--text-secondary)}
+
 @media (max-width:760px){
   .app{grid-template-columns:1fr}
   .app.detail .side{display:none}
   .app:not(.detail) .main{display:none}
   .back{display:inline-flex}
+  .side-head .switcher{display:block}
+  .side-head .brand{flex:1;min-width:0}
   .title-input{font-size:22px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -182,13 +198,12 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
       <button class="btn primary" id="newBtn" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New
       </button>
+      <details class="switcher"><summary class="" aria-label="Switch between Homework and Typing Arcade"><span>Homework</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/" aria-current="page"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details>
     </div>
     <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
-    <div class="side-foot">
-      <a class="btn games" href="/games/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="4"/><path d="M7 10v4M5 12h4M15 11h.01M18 13h.01"/></svg>Typing games</a>
-    </div>
   </aside>
   <main class="main" id="main">
+    <div class="main-top"><details class="switcher"><summary class="" aria-label="Switch between Homework and Typing Arcade"><span>Homework</span><svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary><nav class="switcher-menu"><a href="/" aria-current="page"><b>Homework</b><small>Worksheets to type on</small></a><a href="/games/"><b>Typing Arcade</b><small>Letter Lane · Meteor Words</small></a></nav></details></div>
     <div class="main-inner" id="view">
       <div class="welcome">
         <span class="eyebrow">Homework</span>
@@ -205,6 +220,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 </div>
 <input type="file" id="fileIn" accept="image/*,application/pdf" multiple hidden>
 <div class="toast" id="toast" hidden></div>
+<script src="switcher.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
 </body>

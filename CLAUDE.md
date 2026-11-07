@@ -7,6 +7,8 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 ## Layout
 - `public/index.html` — markup + CSS. Keep the Groundwork tokens in `:root`. No framework, no build step.
 - `public/api.js` — the only place the browser talks to the server (`window.API`).
+- `public/switcher.js` — the Homework ⇄ Arcade dropdown (top right). The markup is a `<details class="switcher">`
+  repeated in `public/index.html` and each `public/games/*.html`; keep the copies in sync.
 - `public/app.js` — UI logic, ported from the prototype.
 - `src/index.ts` — Worker router. Only `/api/*` and `/img/*` run the Worker (`run_worker_first`); everything else is a static asset.
 - `src/routes/*.ts` — assignments, pages (+ image serving), answers/typed values, clean copy.
