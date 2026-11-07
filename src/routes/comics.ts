@@ -19,7 +19,8 @@ type ComicRow = {
 
 const mock = (env: Env) => env.MOCK_AI === "1";
 const artOn = (env: Env) => mock(env) || Boolean(env.GEMINI_API_KEY);
-const dailyLimit = (env: Env) => Math.max(0, Number(env.COMIC_DAILY_LIMIT ?? 3) || 0);
+/** Comics per day, or null for no limit (the default: COMIC_DAILY_LIMIT unset, empty or 0). */
+const dailyLimit = (env: Env): number | null => { const n = Math.floor(Number(env.COMIC_DAILY_LIMIT)); return n > 0 ? n : null; };
 
 /** Today's date where he is (Cloudflare knows the visitor's time zone), for the daily cap. */
 function today(req: Request): string {
@@ -135,7 +136,8 @@ export async function createComic(req: Request, env: Env): Promise<Response> {
   if (story.length < 15) throw new HttpError(400, "too_short", "Tell me a little more of the story!");
   if (story.length > 2000) throw new HttpError(400, "too_long", "That story is too long for one comic.");
   const day = today(req);
-  if ((await usedToday(env, day)) >= dailyLimit(env)) throw new HttpError(429, "daily_limit");
+  const limit = dailyLimit(env);
+  if (limit != null && (await usedToday(env, day)) >= limit) throw new HttpError(429, "daily_limit");
 
   const id = uid();
   const storyWords = blockedWords(story);

@@ -115,7 +115,7 @@ change the plan; I'll decide.
 ## Changing settings later
 
 These live in `wrangler.jsonc` in the repo (ask Claude Code to change them, or edit and push to `main`):
-- `COMIC_DAILY_LIMIT` — comics per day (default 3)
+- `COMIC_DAILY_LIMIT` — optional comics-per-day cap (not set = no limit)
 - `GEMINI_IMAGE_MODEL` — image model id
 - `CLAUDE_MODEL` — model for clean copies and comic scripts
 

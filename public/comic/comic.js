@@ -9,7 +9,7 @@ const DRAFT = 'comic:draft';
 const cache = new Map();          // comic id -> comic payload
 const drawing = new Map();        // comic id -> running draw job
 const failed = new Map();         // `${id}:${slot}` -> message
-let lib = null;                   // { comics, today: {used, limit}, art }
+let lib = null;                   // { comics, today: {used, limit|null}, art }
 let current = null;               // the comic on screen
 
 const ERR = {
@@ -39,9 +39,11 @@ function draft(v) {
 }
 function setTab(name) { document.querySelectorAll('.tabs a').forEach(a => a.toggleAttribute('aria-current', a.dataset.tab === name)); }
 const render = html => { app.innerHTML = html; window.scrollTo(0, 0); };
+/** No daily limit unless COMIC_DAILY_LIMIT is set on the server. */
+const canMakeMore = () => !lib?.today?.limit || lib.today.used < lib.today.limit;
 
 async function loadLib() {
-  try { lib = await API.listComics(); } catch (e) { if (!lib) lib = { comics: [], today: { used: 0, limit: 3 }, art: false }; if (e.code === 'signed_out') toast(errText(e)); }
+  try { lib = await API.listComics(); } catch (e) { if (!lib) lib = { comics: [], today: { used: 0, limit: null }, art: false }; if (e.code === 'signed_out') toast(errText(e)); }
   return lib;
 }
 
@@ -88,9 +90,8 @@ function showWrite(error) {
 function updateToday() {
   if (!lib || !$('#today')) return;
   const { used, limit } = lib.today;
-  const left = Math.max(0, limit - used);
   $('#today').textContent = limit ? `Comics today: ${used} of ${limit}` : '';
-  if (!left) {
+  if (limit && used >= limit) {
     $('#make').disabled = true;
     $('#limitSlot').innerHTML = `<p class="done-for-today">That's all the comics for today. Your comics are waiting in <a href="#/library">My comics</a>. Come back tomorrow for more!</p>`;
   }
@@ -147,7 +148,7 @@ function artHTML(c, i) {
 function renderComic(c) {
   const s = c.script, n = s.panels.length;
   const made = new Date(c.createdAt).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-  const left = lib ? Math.max(0, lib.today.limit - lib.today.used) : 1;
+  const left = canMakeMore();
   render(`<article class="comic">
     <div class="comic-head">
       <div><h1 class="ctitle">${esc(s.title)}</h1><p class="byline">By Simon · ${esc(made)}</p></div>
@@ -376,7 +377,7 @@ async function showLibrary() {
   await loadLib();
   if (location.hash !== '#/library') return;
   const comics = lib.comics;
-  const left = Math.max(0, lib.today.limit - lib.today.used);
+  const left = canMakeMore();
   render(`<div class="libhead"><h1 class="logo small">My Comics</h1>${left ? '<a class="btn big" href="#/">New comic</a>' : ''}</div>
     ${comics.length ? `<div class="shelf">${comics.map(c => {
       const date = new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });

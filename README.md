@@ -33,6 +33,7 @@ text panels.
 Settings in `wrangler.jsonc` → `vars`:
 - `GEMINI_IMAGE_MODEL`: the image model (default `gemini-3-pro-image-preview`, "Nano Banana Pro"). Check the
   current id in Google AI Studio.
-- `COMIC_DAILY_LIMIT`: comics per day (default 3). The day follows the visitor's own time zone.
+- `COMIC_DAILY_LIMIT`: optional comics-per-day cap. Not set (no limit) by default; add it to turn a cap on. The day
+  follows the visitor's own time zone.
 - `GEMINI_TTS_MODEL`: the read-aloud voice model (default `gemini-3.1-flash-tts-preview`; if Google doesn't know
   that id, the Worker falls back to `gemini-2.5-flash-preview-tts` by itself). Uses the same Gemini key.

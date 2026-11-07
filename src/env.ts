@@ -8,7 +8,7 @@ export interface Env {
   GEMINI_IMAGE_MODEL?: string;
   /** Gemini text-to-speech model for Comic Maker read-aloud. */
   GEMINI_TTS_MODEL?: string;
-  /** Comics Simon can make per day (parents set this in wrangler.jsonc / the dashboard). */
+  /** Optional cap on comics per day. Unset, empty or 0 means no limit. */
   COMIC_DAILY_LIMIT?: string;
   /** "1" in .dev.vars only: fake Claude and Gemini so the Comic Maker runs locally without keys. */
   MOCK_AI?: string;

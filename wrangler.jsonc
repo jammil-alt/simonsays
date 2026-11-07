@@ -44,8 +44,7 @@
     // Read-aloud voices (Gemini text-to-speech). If this id isn't found, the Worker tries
     // gemini-2.5-flash-preview-tts on its own. Uses the same GEMINI_API_KEY.
     "GEMINI_TTS_MODEL": "gemini-3.1-flash-tts-preview",
-    // How many comics Simon can make per day.
-    "COMIC_DAILY_LIMIT": "3",
+    // No daily limit on comics. To add one, set e.g. "COMIC_DAILY_LIMIT": "3" here.
     // Cloudflare Access. The API refuses every request until both are set
     // (local dev skips this with DEV_NO_ACCESS=1 in .dev.vars).
     // ACCESS_TEAM_DOMAIN looks like "yourfamily.cloudflareaccess.com".

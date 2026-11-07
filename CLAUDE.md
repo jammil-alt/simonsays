@@ -43,7 +43,7 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   POST /api/comics/:id/draw/<char-N|panel-N> per picture, 3 at a time), so no Worker request runs long and an
   unfinished comic resumes when reopened. Words are never drawn into the pictures: captions and bubbles are HTML
   over the art, so spelling is exact. The script JSON shape is a contract between `src/comic-prompt.ts` and
-  `public/comic/comic.js`. Keep it calm: no points, streaks or timers; the daily cap is `COMIC_DAILY_LIMIT`.
+  `public/comic/comic.js`. Keep it calm: no points, streaks or timers. No daily cap by default (`COMIC_DAILY_LIMIT` turns one on).
   Without `GEMINI_API_KEY` comics show as text panels.
 - Read-aloud: POST /api/comics/:id/voice makes the voice plan once (CLAUDE_TAG_MODEL picks a Gemini voice per
   speaker and a "Say …" direction per line; lines come from `scriptLines()` so their numbers are stable), then
