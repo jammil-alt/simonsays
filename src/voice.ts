@@ -107,6 +107,14 @@ export async function directVoices(env: Env, s: Script): Promise<VoicePlan> {
 
 /* ---------- Gemini text-to-speech ---------- */
 
+/** Seconds Gemini asks us to wait: the Retry-After header, or RetryInfo.retryDelay ("17s") in the error body. */
+function retryAfterSeconds(r: Response, body: string): number | null {
+  const h = Number(r.headers.get("retry-after"));
+  if (Number.isFinite(h) && h > 0) return h;
+  const m = /"retryDelay"\s*:\s*"([\d.]+)s"/.exec(body);
+  return m ? Math.ceil(Number(m[1])) : null;
+}
+
 let workingModel: string | null = null;   // remembered per Worker instance after the first success
 
 /** Gemini returns raw 16-bit PCM; browsers need a WAV header in front of it. */
@@ -140,17 +148,28 @@ export async function speakLine(env: Env, line: { text: string; how: string }, v
   let lastDetail = "";
   for (const model of candidates) {
     for (const v of [voice, NARRATOR_DEFAULT]) {
-      let r: Response;
-      try {
-        r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-          method: "POST",
-          headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
-          body: body(v),
-          signal: AbortSignal.timeout(60_000),
-        });
-      } catch { throw new HttpError(504, "timeout"); }
+      let r!: Response;
+      // Gemini's speech models allow only a few requests a minute on lower tiers. When it says
+      // "too many", wait as long as it asks (up to ~25s) and try again instead of giving up.
+      for (let tries = 0; ; tries++) {
+        try {
+          r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
+            body: body(v),
+            signal: AbortSignal.timeout(60_000),
+          });
+        } catch { throw new HttpError(504, "timeout"); }
+        if (r.status !== 429) break;
+        const detail = await r.text();
+        const perDay = /per.?day|PerDay/i.test(detail);
+        const wait = retryAfterSeconds(r, detail) ?? 2 * 2 ** tries;
+        console.warn("gemini tts 429", model, `wait ${wait}s`, perDay ? "(daily quota)" : "", detail.slice(0, 200));
+        if (perDay) throw new HttpError(429, "voice_quota", "Gemini's daily speech quota is used up.");
+        if (tries >= 3 || wait > 25) throw new HttpError(429, "rate_limited");
+        await new Promise((res) => setTimeout(res, wait * 1000 + 250));
+      }
       if (r.status === 404) { lastDetail = `model ${model} not found`; break; }        // try the next model
-      if (r.status === 429) throw new HttpError(429, "rate_limited");
       if (r.status === 401 || r.status === 403) throw new HttpError(503, "voice_off", "The Gemini API key was rejected.");
       if (r.status >= 500) throw new HttpError(503, "overloaded");
       if (!r.ok) { lastDetail = (await r.text()).slice(0, 300); console.error("gemini tts", model, v, r.status, lastDetail); continue; } // e.g. unknown voice: retry with the default

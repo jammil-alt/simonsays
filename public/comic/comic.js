@@ -332,28 +332,41 @@ async function readAloud(only) {
 
   const lines = plan.lines.filter(wanted);
   const clips = new Map();
-  const clip = l => {                            // record (once) and decode one line, cached per comic
+  const fails = new Set();                       // why lines fell back to the browser voice, shown afterwards
+  const clip = l => {                            // record (once) and decode one line
     if (!clips.has(l.k)) clips.set(l.k, (async () => {
-      if (!l.key) l.key = (await API.comicVoiceLine(c.id, l.k)).key;
-      const r = await fetch('/img/' + l.key);
-      if (!r.ok) throw new Error('clip ' + r.status);
-      return ac.decodeAudioData(await r.arrayBuffer());
+      for (let attempt = 0; ; attempt++) {
+        try {
+          if (!l.key) l.key = (await API.comicVoiceLine(c.id, l.k)).key;
+          const r = await fetch('/img/' + l.key);
+          if (!r.ok) throw Object.assign(new Error('clip'), { code: 'clip_' + r.status });
+          return await ac.decodeAudioData(await r.arrayBuffer());
+        } catch (e) {
+          // Busy or rate-limited: wait a moment and try once more before using the backup voice.
+          if (attempt < 1 && !run.stopped && ['rate_limited', 'overloaded', 'timeout', 'offline'].includes(e.code)) {
+            await new Promise(r => setTimeout(r, 3000)); continue;
+          }
+          throw e;
+        }
+      }
     })());
     return clips.get(l.k);
   };
   for (let n = 0; n < lines.length; n++) {
     if (run.stopped) return;
-    lines.slice(n, n + 4).forEach(l => clip(l).catch(() => {}));   // stay a few lines ahead
+    lines.slice(n, n + 3).forEach(l => clip(l).catch(() => {}));   // stay two lines ahead (gentle on rate limits)
     const l = lines[n];
     let buf = null;
-    try { buf = await clip(l); } catch { buf = null; }
+    try { buf = await clip(l); } catch (e) { buf = null; fails.add(e?.code || e?.name || 'error'); }
     if (run.stopped) return;
     highlight(l.panel);
     if (buf) await playBuffer(ac, buf, run);
     else await browserSay(l.who === 'Narrator' ? l.text : `${l.who} says: ${l.text}`);   // one line failed: don't stop the story
     await new Promise(r => setTimeout(r, l.panel !== lines[n + 1]?.panel ? 350 : 120)); // a breath between panels
   }
-  if (!run.stopped) stopReading();
+  if (run.stopped) return;
+  stopReading();
+  if (fails.size) toast(`Some lines used the backup voice (${[...fails].join(', ')}). Tap "Read it to me" again to retry them.`);
 }
 
 /* ---------- library ---------- */
