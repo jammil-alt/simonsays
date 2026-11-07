@@ -46,6 +46,10 @@ window.API = (() => {
 
     /** Ask Claude (via the Worker) for a clean copy. Resolves to {data, at, model}. */
     makeClean: (pageId, signal) => req('POST', `/api/pages/${enc(pageId)}/clean`, { signal }),
+    /** The child pressed Fix. body: {problem, note, page (marked HTML) | snippet}. Resolves to {data, at, canUndo}. */
+    fixClean: (pageId, body, signal) => req('POST', `/api/pages/${enc(pageId)}/fix`, { json: body, signal }),
+    /** Put the page back the way it was before the last Fix. */
+    unfixClean: (pageId) => req('POST', `/api/pages/${enc(pageId)}/unfix`),
 
     imgUrl: (key) => '/img/' + key,
 

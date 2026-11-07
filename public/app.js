@@ -50,6 +50,7 @@ const ERR_TEXT = {
   bad_photo: 'Claude could not read that photo. A sharper, straighter photo usually helps.',
   refused: 'Claude would not make a clean copy of this page. Try a different photo.',
   not_found: 'That was already deleted.',
+  nothing_to_undo: 'There is nothing to put back.',
   access_not_configured: 'The site is not finished setting up: Cloudflare Access is not configured yet.',
 };
 const errText = (e, what) => ERR_TEXT[e?.code] || `${what} (${e?.code || 'error'})`;
@@ -315,6 +316,7 @@ function renderPages() {
   $('#dropPick').onclick = pickFiles;
   wireDrop($('#drop'));
   el.querySelectorAll('.sheet').forEach(s => { ro.observe(s); s.addEventListener('click', onSheetClick); });
+  el.querySelectorAll('.page .clean').forEach(wireFixTaps);
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => pageAction(b.dataset.act, +b.dataset.i, b));
   el.querySelectorAll('.page').forEach(refreshPage);
   syncBoxes();
@@ -380,10 +382,13 @@ function refreshPage(sec) {
     box.querySelector('[data-p]').onclick = () => { genState.delete(pid); viewMode.set(pid, 'photo'); refreshPage(sec); };
   } else if (has && String(cleanMap.get(pid).at) !== box.dataset.at) {
     box.dataset.at = String(cleanMap.get(pid).at);
-    box.innerHTML = renderWorksheet(cleanMap.get(pid).data, pid);
-    wireWorksheet(box, pid);
+    const data = cleanMap.get(pid).data;
+    if (data?.v === 2) renderPage(box, data, pid);
+    else { box.innerHTML = renderWorksheet(data, pid); wireWorksheet(box, pid); }
+    box.insertAdjacentHTML('beforeend', '<div class="kidbar" role="toolbar" aria-label="Tools"></div>');
     fillTyped(sec);
-  }
+    renderKidbar(sec);
+  } else if (has && !fixState.has(pid)) renderKidbar(sec);
   updateProgress(sec);
 }
 
@@ -407,7 +412,8 @@ async function makeClean(pid) {
     genState.delete(pid);
     // The server clears typed values when it rebuilds a clean copy: field ids are renumbered.
     clearTimeout(typedTimers.get(pid)); typedTimers.delete(pid); typedMap.delete(pid);
-    cleanMap.set(pid, { data: r.data, at: r.at });
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: false });
+    fixState.delete(pid);
     viewMode.set(pid, 'clean');
   } catch (e) {
     if (e.code === 'cancelled') genState.delete(pid);
@@ -457,8 +463,196 @@ function setCrayon(c) {
   document.querySelectorAll('.crayon').forEach(b => b.setAttribute('aria-checked', b.dataset.c === c));
 }
 
+/* ---------- HTML pages (clean copy v2) ---------- */
+// Claude writes each page as HTML (src/prompt.ts). Only the tags and attributes below get through; then
+// inputs (data-f), colourable things (data-paint) and pick-one/pick-many groups (data-group) are made interactive.
+const PAGE_TAGS = new Set(('div span p br hr h1 h2 h3 h4 h5 h6 b strong i em u s sub sup small table thead tbody tfoot tr th td ' +
+  'caption colgroup col ul ol li input textarea label section header footer figure figcaption ' +
+  'svg g line rect circle ellipse path polygon polyline text tspan').split(' '));
+const DROP_TAGS = new Set(('script style iframe frame frameset object embed link meta base img image video audio source track picture ' +
+  'canvas form select option template noscript title math foreignobject use animate set animatemotion animatetransform').split(' '));
+const PAGE_ATTRS = new Set(['style', 'class', 'data-f', 'data-kind', 'data-lines', 'data-paint', 'data-group', 'data-fix-here', 'colspan', 'rowspan', 'span', 'start']);
+const SVG_ATTRS = new Set(('viewbox width height x y x1 y1 x2 y2 cx cy r rx ry d points dx dy fill stroke stroke-width stroke-dasharray ' +
+  'stroke-linecap stroke-linejoin transform font-size font-weight text-anchor dominant-baseline opacity fill-opacity preserveaspectratio').split(' '));
+const SVG_TAGS = new Set('svg g line rect circle ellipse path polygon polyline text tspan'.split(' '));
+const FIELD_ID = /^[a-z]\d{1,4}$/;
+const BAD_VALUE = /javascript:|vbscript:|url\s*\(|expression\s*\(|@import|behavior\s*:|-moz-binding|position\s*:\s*(fixed|sticky)/i;
+
+function sanitizePage(html) {
+  const body = new DOMParser().parseFromString('<!doctype html><body>' + String(html || ''), 'text/html').body;
+  const seen = new Set(); let auto = 0;
+  const fresh = () => { let id; do id = 'z' + (++auto); while (seen.has(id)); seen.add(id); return id; };
+  const walk = node => {
+    for (const ch of [...node.childNodes]) {
+      if (ch.nodeType === 3) continue;
+      if (ch.nodeType !== 1) { ch.remove(); continue; }
+      const tag = ch.localName.toLowerCase();
+      if (DROP_TAGS.has(tag)) { ch.remove(); continue; }
+      walk(ch);
+      if (!PAGE_TAGS.has(tag)) { ch.replaceWith(...ch.childNodes); continue; }
+      for (const a of [...ch.attributes]) {
+        const n = a.name.toLowerCase();
+        const ok = (PAGE_ATTRS.has(n) || (SVG_TAGS.has(tag) && SVG_ATTRS.has(n))) && !BAD_VALUE.test(a.value) && a.value.length <= 2000;
+        if (!ok) ch.removeAttribute(a.name);
+      }
+      if (ch.hasAttribute('class')) { if (/\bfig\b/.test(ch.getAttribute('class'))) ch.setAttribute('class', 'fig'); else ch.removeAttribute('class'); }
+      if (ch.hasAttribute('data-f') && tag !== 'input' && tag !== 'textarea') ch.removeAttribute('data-f');
+      if ((tag === 'input' || tag === 'textarea')) { ch.removeAttribute('data-paint'); if (!ch.hasAttribute('data-f')) ch.setAttribute('data-f', ''); }
+      for (const k of ['data-f', 'data-paint']) if (ch.hasAttribute(k)) {
+        const v = ch.getAttribute(k);
+        if (!FIELD_ID.test(v) || seen.has(v)) ch.setAttribute(k, fresh()); else seen.add(v);
+      }
+    }
+  };
+  walk(body);
+  return body;
+}
+
+function renderPage(box, data, pid) {
+  const root = document.createElement('div');
+  root.className = 'ws ws2';
+  root.append(...sanitizePage(data.html).childNodes);
+  root.querySelectorAll('input').forEach(el => {
+    const kind = ['number', 'word', 'sentence'].includes(el.dataset.kind) ? el.dataset.kind : 'word';
+    Object.assign(el, { type: 'text', className: 'blank ' + kind, autocomplete: 'off', spellcheck: false });
+    el.setAttribute('aria-label', 'Answer');
+    if (kind === 'number') { el.inputMode = 'numeric'; el.size = 3; } else if (kind === 'word') el.size = 8;
+  });
+  root.querySelectorAll('textarea').forEach(el => { el.className = 'lined'; el.rows = Math.max(2, Math.min(12, +el.dataset.lines || 3)); el.setAttribute('aria-label', 'Writing answer'); });
+  root.querySelectorAll('[data-paint]').forEach(el => { el.classList.add('pt'); el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); el.setAttribute('aria-pressed', 'false'); });
+  box.replaceChildren(root);
+  const sec = box.closest('.page');
+  root.querySelectorAll('input[data-f],textarea[data-f]').forEach(el => el.addEventListener('input', () => setTyped(pid, el.dataset.f, el.value, sec)));
+  const tap = el => {
+    const id = el.dataset.paint, vals = typedMap.get(pid) || {};
+    const next = crayon === 'erase' || vals[id] === crayon ? '' : crayon;
+    if (next) { // pick-one: colouring one clears the others in its group
+      const g = el.closest('[data-group="one"]');
+      g?.querySelectorAll('[data-paint]').forEach(o => { if (o !== el && vals[o.dataset.paint]) { setTyped(pid, o.dataset.paint, '', sec); showPaint2(o, ''); } });
+    }
+    setTyped(pid, id, next, sec); showPaint2(el, next);
+  };
+  root.addEventListener('click', e => { const el = e.target.closest('[data-paint]'); if (el && root.contains(el)) tap(el); });
+  root.addEventListener('keydown', e => { const el = e.target.closest?.('[data-paint]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tap(el); } });
+}
+function showPaint2(el, c) {
+  const col = CRAYONS[c];
+  el.setAttribute('aria-pressed', !!col);
+  el.classList.toggle('painted', !!col);
+  if (col) el.style.setProperty('--paint', col); else el.style.removeProperty('--paint');
+}
+/** The page's HTML as Claude wrote it (sanitized), with data-fix-here on the element at `idx` (-1: whole page). */
+function markedPage(html, idx) {
+  const body = sanitizePage(html);
+  body.querySelectorAll('[data-fix-here]').forEach(e => e.removeAttribute('data-fix-here'));
+  if (idx >= 0) body.querySelectorAll('*')[idx]?.setAttribute('data-fix-here', '1');
+  return body.innerHTML;
+}
+
+/* ---------- kid toolbar: crayons, Fix, Put it back ---------- */
+const fixState = new Map(); // pageId -> {step: 'where'|'what'|'busy'|'error', el, idx, problem, note, ctl, error}
+const PROBLEMS = [
+  ['type', '✏️', "I can't write here"],
+  ['color', '🖍️', "I can't color it"],
+  ['words', '🔤', 'The words are wrong'],
+  ['missing', '🧩', 'Something is missing'],
+  ['looks', '👀', 'It looks different'],
+];
+
+function renderKidbar(sec) {
+  const pid = sec.dataset.page, box = sec.querySelector('.clean'), bar = box.querySelector('.kidbar');
+  if (!bar) return;
+  const f = fixState.get(pid);
+  box.classList.toggle('fixing', f?.step === 'where' || f?.step === 'what');
+  box.querySelectorAll('.fix-target').forEach(e => e.classList.remove('fix-target'));
+  if (f?.el && f.step !== 'where') f.el.classList.add('fix-target');
+  bar.classList.toggle('wide', !!f && f.step !== 'busy');
+  const cancel = '<button type="button" class="kbtn ghost" data-cancel>Cancel</button>';
+  if (!f) {
+    const paint = !!box.querySelector('[data-paint], .paint [data-k]');
+    bar.innerHTML = (paint ? crayonsHTML() : '') +
+      `<button type="button" class="kbtn fix" data-fix><span aria-hidden="true">🔧</span> Fix</button>` +
+      (cleanMap.get(pid)?.canUndo ? `<button type="button" class="kbtn" data-unfix><span aria-hidden="true">↩️</span> Put it back</button>` : '');
+  } else if (f.step === 'where') {
+    bar.innerHTML = `<p class="kmsg"><span aria-hidden="true">👆</span> Tap the part that's wrong</p>
+      <div class="kact"><button type="button" class="kbtn" data-whole>The whole page</button>${cancel}</div>`;
+  } else if (f.step === 'what') {
+    bar.innerHTML = `<p class="kmsg">What's wrong${f.el ? ' here' : ''}?</p>
+      <div class="kprobs">${PROBLEMS.map(([k, e, t]) => `<button type="button" class="kprob" data-prob="${k}" aria-pressed="${f.problem === k}"><span class="e" aria-hidden="true">${e}</span>${t}</button>`).join('')}</div>
+      <input class="knote" maxlength="300" placeholder="Tell me more (tap 🎤 on the keyboard to talk)" aria-label="Tell me more" value="${esc(f.note || '')}">
+      <div class="kact"><button type="button" class="kbtn primary" data-go ${f.problem || f.note ? '' : 'disabled'}><span aria-hidden="true">✨</span> Fix it!</button>${cancel}</div>`;
+  } else if (f.step === 'busy') {
+    bar.innerHTML = `<p class="kmsg"><span class="spin" aria-hidden="true">🔧</span> Fixing it… this takes about a minute</p><button type="button" class="kbtn ghost" data-stop>Stop</button>`;
+  } else {
+    bar.innerHTML = `<p class="kmsg err">${esc(f.error)}</p><div class="kact"><button type="button" class="kbtn primary" data-go>Try again</button>${cancel}</div>`;
+  }
+  const on = (sel, fn) => bar.querySelectorAll(sel).forEach(b => b.onclick = fn);
+  on('.crayon', e => setCrayon(e.currentTarget.dataset.c));
+  on('[data-fix]', () => { fixState.set(pid, { step: 'where' }); renderKidbar(sec); });
+  on('[data-unfix]', () => unfix(sec));
+  on('[data-cancel]', () => { fixState.delete(pid); renderKidbar(sec); });
+  on('[data-whole]', () => { Object.assign(f, { step: 'what', el: null, idx: -1 }); renderKidbar(sec); });
+  on('[data-prob]', e => { f.problem = f.problem === e.currentTarget.dataset.prob ? '' : e.currentTarget.dataset.prob; renderKidbar(sec); });
+  on('[data-go]', () => runFix(sec));
+  on('[data-stop]', () => f.ctl?.abort());
+  const note = bar.querySelector('.knote');
+  if (note) note.oninput = () => { f.note = note.value; bar.querySelector('[data-go]').disabled = !(f.problem || f.note.trim()); };
+}
+
+// While fixing, a tap on the page picks the part that's wrong instead of typing or colouring.
+function wireFixTaps(box) {
+  const picking = e => {
+    const f = fixState.get(box.closest('.page').dataset.page);
+    const root = box.querySelector('.ws');
+    return f && (f.step === 'where' || f.step === 'what') && root?.contains(e.target) ? { f, root } : null;
+  };
+  box.addEventListener('pointerdown', e => { if (picking(e)) e.preventDefault(); }, true);
+  box.addEventListener('focusin', e => { if (picking(e)) e.target.blur(); }, true);
+  box.addEventListener('click', e => {
+    const p = picking(e); if (!p) return;
+    e.preventDefault(); e.stopPropagation();
+    let t = e.target.closest('svg') || e.target;
+    let el = t.closest('td, th, li, p, h1, h2, h3, h4, figure, label, [data-group], table, .it, .bank, .fig, section, div, svg');
+    if (!el || el === p.root || !p.root.contains(el)) el = null;
+    Object.assign(p.f, { step: 'what', el, idx: el ? [...p.root.querySelectorAll('*')].indexOf(el) : -1 });
+    renderKidbar(box.closest('.page'));
+  }, true);
+}
+
+async function runFix(sec) {
+  const pid = sec.dataset.page, f = fixState.get(pid), c = cleanMap.get(pid);
+  if (!f || !c) return;
+  const body = { problem: f.problem || 'other', note: (f.note || '').trim() };
+  if (c.data?.v === 2) body.page = markedPage(c.data.html, f.idx ?? -1);
+  else body.snippet = f.el ? f.el.textContent.replace(/\s+/g, ' ').trim().slice(0, 500) : '';
+  f.step = 'busy'; f.ctl = new AbortController();
+  renderKidbar(sec);
+  try {
+    const r = await API.fixClean(pid, body, f.ctl.signal);
+    fixState.delete(pid);
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: r.canUndo });
+    toast('All fixed! ✨');
+  } catch (e) {
+    if (e.code === 'cancelled') fixState.delete(pid);
+    else Object.assign(f, { step: 'error', error: ERR_TEXT[e.code] || "That didn't work. Try again.", ctl: null });
+  }
+  const s = document.querySelector(`.page[data-page="${pid}"]`);
+  if (s) { refreshPage(s); renderKidbar(s); }
+}
+
+async function unfix(sec) {
+  const pid = sec.dataset.page;
+  try {
+    const r = await API.unfixClean(pid);
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: false });
+    toast('Put back the way it was');
+  } catch (e) { toast(errText(e, 'Could not put it back')); }
+  const s = document.querySelector(`.page[data-page="${pid}"]`);
+  if (s) refreshPage(s);
+}
+
 function renderWorksheet(d, pid) {
-  let n = 0, paints = false;
+  let n = 0;
   const T = s => esc(s ?? '');
   const blank = (b) => {
     const kind = ['number', 'word', 'sentence'].includes(b?.blank) ? b.blank : 'word';
@@ -474,7 +668,7 @@ function renderWorksheet(d, pid) {
         return `<div class="it it-vert">${lbl(it)}<div class="vert">${rows.map(r => `<div>${T(r)}</div>`).join('')}<div class="row2"><span>${T(it.op)}</span><span>${T(last)}</span></div>${blank({ blank: 'number' })}</div></div>`;
       }
       case 'write': { const id = 'w' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><textarea class="lined" data-f="${id}" rows="${Math.max(2, Math.min(12, +it.lines || 3))}" aria-label="Writing answer"></textarea></div></div>`; }
-      case 'choice': { const id = 'c' + (n++); paints = true; return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts paint" data-f="${id}"${it.many ? ' data-many="1"' : ''} role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'choice': { const id = 'c' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts paint" data-f="${id}"${it.many ? ' data-many="1"' : ''} role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
       case 'table': {
         const rows = (Array.isArray(it.rows) ? it.rows : []).filter(Array.isArray);
         if (!rows.length) return '';
@@ -487,7 +681,6 @@ function renderWorksheet(d, pid) {
           return '<td></td>';
         };
         const body = rows.map(r => `<tr>${r.map(cell).join('')}${'<td></td>'.repeat(cols - r.length)}</tr>`).join('');
-        if (k) paints = true;
         // Any word cell can be coloured; it only counts as a question when the sheet says to colour/circle/cross cells.
         return `<table class="ws-table${k ? ' paint' : ''}"${k ? ` data-f="${id}" data-many="1"${mark ? ` data-mark="${mark}"` : ' data-count="0"'}` : ''}><tbody>${body}</tbody></table>`;
       }
@@ -501,10 +694,8 @@ function renderWorksheet(d, pid) {
     const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
     // Older clean copies often repeat the heading as the instructions; show it once.
     const instr = s.instructions && s.instructions.trim() !== (s.heading || '').trim() ? s.instructions : '';
-    paints = false;
     const body = items.map(item).join('');
-    // Crayons sit at the top of a section that has something to colour, and stay in view while it's on screen.
-    return `<section class="ws-sec">${paints ? crayonsHTML() : ''}${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${instr ? `<p class="ws-instr">${T(instr)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${body}</div></section>`;
+    return `<section class="ws-sec">${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${instr ? `<p class="ws-instr">${T(instr)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${body}</div></section>`;
   }).join('');
   return `<div class="ws">
     ${d.title ? `<h2 class="ws-title">${T(d.title)}</h2>` : ''}
@@ -523,7 +714,6 @@ function wireWorksheet(box, pid) {
     setTyped(pid, f, paintStr(m), sec);
     showPaint(g, m);
   }));
-  box.querySelectorAll('.crayon').forEach(b => b.onclick = () => setCrayon(b.dataset.c));
   box.querySelectorAll('[data-show-photo]').forEach(b => b.onclick = () => { viewMode.set(pid, 'photo'); refreshPage(sec); });
 }
 
@@ -543,6 +733,7 @@ function fillTyped(sec) {
   const vals = typedMap.get(sec.dataset.page) || {};
   sec.querySelectorAll('.clean input[data-f], .clean textarea[data-f]').forEach(el => { if (document.activeElement !== el && el.value !== (vals[el.dataset.f] || '')) el.value = vals[el.dataset.f] || ''; });
   sec.querySelectorAll('.clean .paint[data-f]').forEach(g => showPaint(g, parsePaint(vals[g.dataset.f])));
+  sec.querySelectorAll('.clean [data-paint]').forEach(el => showPaint2(el, vals[el.dataset.paint]));
   updateProgress(sec);
 }
 
@@ -551,8 +742,10 @@ function updateProgress(sec) {
   const box = sec.querySelector('.clean');
   if (box.hidden || !cleanMap.has(sec.dataset.page)) { pr.textContent = ''; return; }
   const fields = box.querySelectorAll('[data-f]:not([data-count="0"])'); const vals = typedMap.get(sec.dataset.page) || {};
-  const done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
-  pr.textContent = fields.length ? ` · ${done} of ${fields.length} answered` : '';
+  let total = fields.length, done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
+  // A colouring question (data-group) counts once, answered when anything in it is coloured.
+  box.querySelectorAll('[data-group]').forEach(g => { total++; if ([...g.querySelectorAll('[data-paint]')].some(p => vals[p.dataset.paint])) done++; });
+  pr.textContent = total ? ` · ${done} of ${total} answered` : '';
 }
 
 /* ---------- uploads ---------- */

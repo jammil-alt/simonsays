@@ -82,7 +82,7 @@ export async function getAssignment(env: Env, id: string): Promise<Response> {
        JOIN pages p ON p.id = ans.page_id WHERE p.assignment_id = ?`,
     ).bind(a.id),
     env.DB.prepare(
-      `SELECT c.page_id, c.data, c.model, c.created_at FROM clean_copies c
+      `SELECT c.page_id, c.data, c.model, c.created_at, c.prev_data IS NOT NULL AS can_undo FROM clean_copies c
        JOIN pages p ON p.id = c.page_id WHERE p.assignment_id = ?`,
     ).bind(a.id),
     env.DB.prepare(
@@ -92,13 +92,13 @@ export async function getAssignment(env: Env, id: string): Promise<Response> {
   ]);
   type P = { id: string; r2_key: string; w: number; h: number };
   type A = { id: string; page_id: string; x: number; y: number; w: number; text: string };
-  type C = { page_id: string; data: string; model: string; created_at: number };
+  type C = { page_id: string; data: string; model: string; created_at: number; can_undo: number };
   type T = { page_id: string; vals: string };
   return json({
     ...toAssignment(a),
     pages: (pages.results as P[]).map((p) => ({ id: p.id, key: p.r2_key, w: p.w, h: p.h })),
     answers: (answers.results as A[]).map((r) => ({ id: r.id, pageId: r.page_id, x: r.x, y: r.y, w: r.w, t: r.text ?? "" })),
-    clean: Object.fromEntries((clean.results as C[]).map((r) => [r.page_id, { data: JSON.parse(r.data), at: r.created_at, model: r.model }])),
+    clean: Object.fromEntries((clean.results as C[]).map((r) => [r.page_id, { data: JSON.parse(r.data), at: r.created_at, model: r.model, canUndo: !!r.can_undo }])),
     typed: Object.fromEntries((typed.results as T[]).map((r) => [r.page_id, JSON.parse(r.vals)])),
   });
 }

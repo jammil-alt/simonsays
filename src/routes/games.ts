@@ -43,7 +43,7 @@ const clean = (w: string) => w.toLowerCase().replace(/^[^a-z]+|[^a-z]+$/g, "");
 const ok = (w: string) => /^[a-z]{2,10}$/.test(w);
 
 type Item = { type?: string; words?: unknown[]; options?: unknown[]; rows?: unknown[]; text?: string; prompt?: string; parts?: unknown[] };
-type Sheet = { title?: string; instructions?: string; sections?: { heading?: string; instructions?: string; items?: Item[] }[] };
+type Sheet = { v?: number; html?: string; title?: string; instructions?: string; sections?: { heading?: string; instructions?: string; items?: Item[] }[] };
 
 /** Pull practice words out of clean-copy JSON: word banks and choices first, then other words as filler. */
 export function extractWords(sheets: Sheet[], max = 40): string[] {
@@ -54,6 +54,14 @@ export function extractWords(sheets: Sheet[], max = 40): string[] {
   };
   for (const d of sheets) {
     addWeak(d.title);
+    if (d.v === 2 && typeof d.html === "string") {
+      // HTML pages: words the child colours or circles are the practice words; the rest is filler.
+      for (const m of d.html.matchAll(/data-paint="[^"]*"[^>]*>\s*([^<]{1,30}?)\s*</g)) {
+        const w = clean(m[1]); if (ok(w) && !/\s/.test(m[1].trim())) strong.push(w);
+      }
+      addWeak(d.html.replace(/<[^>]*>/g, " ").replace(/&[a-z#0-9]+;/gi, " "));
+      continue;
+    }
     for (const sec of d.sections ?? []) {
       for (const it of sec.items ?? []) {
         if (it.type === "wordbank") for (const w of it.words ?? []) { const c = clean(String(w)); if (ok(c)) strong.push(c); }
