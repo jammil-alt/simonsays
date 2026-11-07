@@ -11,8 +11,10 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   `<details class="switcher" data-current="homework|arcade|comic">`.
 - `public/app.js` — UI logic, ported from the prototype.
 - `src/index.ts` — Worker router. Only `/api/*` and `/img/*` run the Worker (`run_worker_first`); everything else is a static asset.
-- `src/routes/*.ts` — assignments, pages (+ image serving), answers/typed values, clean copy.
-- `src/prompt.ts` — `CLEAN_PROMPT`.
+- `src/routes/*.ts` — assignments, pages (+ image serving), answers/typed values, clean copy (build, Fix, Put it back).
+- `src/prompt.ts` — `PAGE_PROMPT` (build a page) and `fixPrompt` (the child's Fix button).
+- `src/routes/tags.ts` — page tags (subject/topic) read off each photo by `CLAUDE_TAG_MODEL` (Haiku); they drive the
+  sidebar filter. Assignments have no subject in the UI any more (the column stays, unused).
 - `src/access.ts` — Cloudflare Access JWT check. Fails closed unless `DEV_NO_ACCESS=1` (local only).
 - `migrations/` — D1 schema. Add a new numbered file; never edit an applied one.
 - `public/games/` — the Typing Arcade (`/games/`): `shared.js` (levels, word lists, finger-colour keyboard, sounds,
@@ -25,11 +27,17 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 
 ## Rules
 - All reads and writes go through `/api/*`. The client never calls Anthropic directly; the key is a Worker secret.
-- The clean-copy JSON shape (`line`, `vertical`, `write`, `choice`, `wordbank`, `text`, `figure`) is a contract
-  between `src/prompt.ts` and `renderWorksheet` in `public/app.js`. Change both together.
-- Field ids on the clean copy (`b0`, `w1`, `c2`…) are assigned in render order. Rebuilding a clean copy clears
-  `typed_values` for that page (server-side, in `src/routes/clean.ts`).
-- Model and effort come from `CLAUDE_MODEL` / `CLAUDE_EFFORT` in `wrangler.jsonc` vars.
+- Clean copies are HTML that Claude writes: `{v: 2, title, html}`. The tags/attributes allowed in `RULES`
+  (`src/prompt.ts`) must match `sanitizePage` in `public/app.js`, which is the only thing standing between Claude's
+  HTML and the DOM; never render a page without it. Interactive parts: `<input data-f>`, `<textarea data-f>`,
+  `data-paint` (colourable) inside `data-group="one|many"`. Change prompt and renderer together.
+- Older clean copies are the JSON worksheet (`line`, `vertical`, `write`, `choice`, `table`, `wordbank`, `text`,
+  `figure`) drawn by `renderWorksheet`; keep it working. A Fix on one rebuilds it as HTML.
+- Fix keeps typed values (Claude keeps the ids of parts it doesn't change) and saves the previous page in
+  `clean_copies.prev_data` for "Put it back".
+- Field ids (`b1`, `w1`, `p1`… on HTML pages, `b0`, `c2`… on older ones) must match `/^[a-z]\d{1,4}$/` (the
+  typed-values allow-list). Rebuilding a page (Redo) clears `typed_values` for it; Fix doesn't.
+- Model and effort come from `CLAUDE_MODEL` / `CLAUDE_EFFORT` in `wrangler.jsonc` vars; tagging uses `CLAUDE_TAG_MODEL`.
 - Comic Maker: the browser drives the steps (POST /api/comics writes the script, then one
   POST /api/comics/:id/draw/<char-N|panel-N> per picture, 3 at a time), so no Worker request runs long and an
   unfinished comic resumes when reopened. Words are never drawn into the pictures: captions and bubbles are HTML

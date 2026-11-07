@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+<rect width="100%" height="100%" fill="#cdb4db"/><rect y="372" width="100%" height="228" fill="#7bc96f"/>
+<circle cx="150" cy="372" r="72" fill="#e63946" stroke="#111" stroke-width="6"/>
+<circle cx="450" cy="384" r="84.00000000000001" fill="#9ef01a" stroke="#111" stroke-width="6"/>
+<text x="50%" y="491.99999999999994" font-family="sans-serif" font-size="20" text-anchor="middle" fill="#111">MOCK CHAR-1</text>
+<text x="50%" y="216" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#333">Character design sheet for a kids'</text><text x="50%" y="240" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#333">comic: Slime King, wobbly lime-green</text><text x="50%" y="264" font-family="sans-serif" font-size="18" text-anchor="middle" fill="#333">slime blob wearing a tiny gold crown.</text>
+</svg>

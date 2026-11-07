@@ -49,6 +49,23 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .pill.todo{border-color:var(--clay-200);background:var(--clay-050);color:var(--clay-600)}
 .pill.done{border-color:var(--stone-900);background:var(--stone-900);color:var(--paper)}
 .list-empty{padding:24px 16px;color:var(--text-secondary);font-size:13px}
+/* tag filter (sidebar) and tags on each page */
+.tagbar{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px;padding-left:max(16px,env(safe-area-inset-left,0px));border-bottom:1px solid var(--border-divider)}
+.tagbar[hidden]{display:none}
+.tchip{font:500 12px/1 var(--font-ui);min-height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-body);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.tchip small{font:500 10px/1 var(--font-mono);color:var(--text-faint)}
+.tchip[aria-pressed="true"]{background:var(--stone-900);border-color:var(--stone-900);color:var(--paper)}
+.tchip[aria-pressed="true"] small{color:var(--stone-250)}
+.row-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.row-tags span{font:500 10.5px/1 var(--font-ui);padding:3px 6px;border-radius:999px;background:var(--stone-075);border:1px solid var(--stone-150);color:var(--text-body)}
+.ptags{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;margin-left:8px;vertical-align:middle;font-family:var(--font-ui);letter-spacing:0;text-transform:none}
+.ptag{display:inline-flex;align-items:center;gap:2px;font:500 11.5px/1 var(--font-ui);padding:2px 2px 2px 8px;border-radius:999px;background:var(--surface-card);border:1px solid var(--stone-250);color:var(--text-body)}
+.ptag button{border:0;background:none;padding:0;width:20px;height:20px;border-radius:50%;cursor:pointer;color:var(--text-faint);display:grid;place-items:center}
+.ptag button:hover{background:var(--stone-100);color:var(--text-primary)}
+.ptag button svg{width:12px;height:12px}
+.ptag-add{font:500 11.5px/1 var(--font-ui);min-height:22px;padding:0 8px;border-radius:999px;border:1px dashed var(--stone-300);background:none;color:var(--text-secondary);cursor:pointer}
+.ptag-in{font:500 12px/1 var(--font-ui);width:9em;min-height:24px;padding:0 8px;border-radius:999px;border:1px solid var(--action);outline:none}
+.ptags .tagging{font:11.5px var(--font-ui);color:var(--text-faint)}
 
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:40px;padding:0 14px;border-radius:var(--r-sm);border:1px solid var(--stone-250);background:var(--surface-card);color:var(--text-primary);font-weight:500;font-size:13px;cursor:pointer;transition:background 160ms,transform 120ms;white-space:nowrap}
 .btn:hover{background:var(--surface-subtle)}
@@ -85,7 +102,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .hint b{color:var(--text-primary);font-weight:600}
 
 .pages{display:flex;flex-direction:column;gap:20px}
-.page{background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--r-md);overflow:hidden}
+.page{background:var(--surface-card);border:1px solid var(--border-card);border-radius:var(--r-md);overflow:hidden;overflow:clip}
 .page-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--border-divider);background:var(--surface-subtle);flex-wrap:wrap}
 .page-bar .eyebrow{color:var(--text-secondary)}
 .page-tools{display:flex;gap:4px;flex-wrap:wrap}
@@ -127,7 +144,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .bar{flex:1;height:4px;background:var(--stone-100);border-radius:2px;overflow:hidden;max-width:240px}
 .bar i{display:block;height:100%;background:var(--action);width:0;transition:width 200ms}
 .vseg button{min-height:30px;padding:0 10px}
-.clean{padding:clamp(16px,4vw,40px);background:#fff;--wfs:21px}
+.clean{padding:clamp(16px,4vw,40px);background:#fff;--wfs:21px;-webkit-tap-highlight-color:transparent}
 .clean[hidden],.sheet[hidden]{display:none}
 .ws{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px;font-family:var(--font-answer);font-size:var(--wfs);line-height:1.45;color:#1b1b1b}
 .ws-title{margin:0;font-size:1.45em;line-height:1.2;font-weight:700;text-wrap:balance;color:#111}
@@ -154,6 +171,63 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .opts{display:flex;flex-wrap:wrap;gap:.5em}
 .opt{font:inherit;font-size:.95em;border:2px solid #bbb;background:#fff;border-radius:999px;padding:.15em .8em;cursor:pointer;color:#222}
 .opt[aria-pressed="true"]{border-color:var(--ink);color:var(--ink);background:var(--ink-wash);font-weight:700}
+.opt.painted,.opt.painted[aria-pressed="true"]{background:var(--paint);border-color:color-mix(in srgb,var(--paint) 55%,#333);color:#1b1b1b}
+.paint[data-mark="cross"] [aria-pressed="true"]{text-decoration:line-through 3px}
+.ws-table{border-collapse:collapse;width:100%;table-layout:fixed;border:2.5px solid #333;font-size:min(1em,4.3vw)}
+.ws-table td{border:1.5px solid #333;padding:0;text-align:center;vertical-align:middle;height:2.6em}
+.ws-table td.mixed{text-align:left;padding:.35em .6em}
+.cell{display:block;width:100%;height:100%;min-height:2.6em;font:inherit;color:inherit;background:transparent;border:0;padding:.3em .2em;cursor:pointer;overflow-wrap:normal;-webkit-tap-highlight-color:transparent}
+@media (hover:hover){.cell:hover{background:var(--surface-hover)}}
+.cell[aria-pressed="true"]{background:var(--ink-wash)}
+.cell.painted{background:var(--paint)}
+.cell:focus-visible{outline:3px solid var(--ink);outline-offset:-3px}
+.crayons{position:sticky;top:8px;z-index:3;align-self:center;display:flex;align-items:center;gap:clamp(6px,2vw,10px);width:fit-content;max-width:100%;padding:6px clamp(8px,2.5vw,12px);background:rgba(255,255,255,.95);border:1px solid var(--border-card);border-radius:999px;box-shadow:var(--shadow-md);font-size:14px}
+.crayon{flex:none;width:clamp(30px,8vw,36px);height:clamp(30px,8vw,36px);padding:0;border-radius:50%;border:2px solid rgba(0,0,0,.2);background:var(--c);cursor:pointer;display:grid;place-items:center;color:var(--text-body)}
+.crayon svg{width:20px;height:20px}
+.crayon.erase{background:#fff}
+.crayon[aria-checked="true"]{outline:3px solid var(--text-primary);outline-offset:2px}
+/* HTML pages (clean copy v2): Claude's own layout, contained so it can't spill over the app */
+.ws2{display:block;position:relative;contain:layout;overflow-x:auto;overflow-wrap:break-word}
+.ws2 h1,.ws2 h2,.ws2 h3,.ws2 h4{margin:.6em 0 .4em;line-height:1.2;color:#111}
+.ws2 h1{font-size:1.45em}.ws2 h2{font-size:1.25em}.ws2 h3,.ws2 h4{font-size:1.08em}
+.ws2 p{margin:.4em 0}
+.ws2 table{border-collapse:collapse;max-width:100%;font-size:min(1em,4.3vw)}
+@media (max-width:520px){.ws2 td,.ws2 th{padding-left:.2em!important;padding-right:.2em!important}}
+.ws2 td,.ws2 th{padding:.3em .45em}
+.ws2 svg{max-width:100%;height:auto;overflow:visible}
+.ws2 .fig{margin:.5em 0}
+.ws2 .blank{margin:0 .15em}
+.pt{cursor:pointer;border-radius:3px;-webkit-tap-highlight-color:transparent;transition:background-color .12s}
+.pt:focus-visible{outline:3px solid var(--ink);outline-offset:1px}
+.pt.painted{background:var(--paint)}
+svg .pt{pointer-events:all}
+svg .pt.painted{fill:var(--paint);background:none}
+@media (hover:hover){.pt:not(.painted):hover{background:var(--surface-hover)}}
+/* kid toolbar: crayons, Fix, Put it back. Sticks to the bottom of the screen while the page is in view. */
+.kidbar{position:sticky;bottom:12px;z-index:4;margin:24px auto 0;width:fit-content;max-width:100%;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 12px;padding:8px 10px;background:rgba(255,255,255,.97);border:1px solid var(--border-card);border-radius:24px;box-shadow:var(--shadow-md);font-family:var(--font-ui)}
+.kidbar.wide{width:min(100%,600px);padding:12px}
+.kidbar:empty{display:none}
+.kidbar .crayons{position:static;box-shadow:none;border:0;padding:0;margin:0;background:none;flex-wrap:wrap;justify-content:center}
+.kbtn{display:inline-flex;align-items:center;gap:6px;font:600 16px/1 var(--font-ui);min-height:44px;padding:0 16px;border-radius:999px;border:2px solid var(--border-control);background:#fff;color:var(--text-primary);cursor:pointer}
+.kbtn.fix{border-color:var(--action);color:var(--action)}
+.kbtn.primary{background:var(--action);border-color:var(--action);color:var(--on-action)}
+.kbtn.primary:disabled{opacity:.45;cursor:default}
+.kbtn.ghost{border-color:transparent;background:none;color:var(--text-secondary)}
+.kmsg{margin:0;font:600 17px/1.3 var(--font-ui);color:var(--text-primary);text-align:center;width:100%}
+.kmsg.err{color:var(--ox-700);font-weight:500;font-size:15px}
+.kact{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}
+.kprobs{display:grid;grid-template-columns:repeat(auto-fit,minmax(10.5em,1fr));gap:8px;width:100%}
+@media (max-width:520px){.kprobs{grid-template-columns:1fr 1fr;gap:6px}.kprob{min-height:46px;padding:4px 8px;gap:6px;font-size:13.5px}.kprob .e{font-size:20px}.kidbar.wide{padding:10px 8px}}
+.kprob{display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 12px;text-align:left;font:600 15px/1.2 var(--font-ui);color:var(--text-primary);background:#fff;border:2px solid var(--border-control);border-radius:14px;cursor:pointer}
+.kprob .e{font-size:24px;line-height:1}
+.kprob[aria-pressed="true"]{border-color:var(--action);background:var(--selected-bg)}
+.knote{width:100%;font:16px/1.3 var(--font-ui);padding:10px 12px;border:2px solid var(--border-control);border-radius:12px;color:var(--text-primary)}
+.knote:focus{outline:none;border-color:var(--action)}
+.spin{display:inline-block;animation:spin 1.2s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.clean.fixing .ws{cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.fix-target{outline:4px solid var(--action)!important;outline-offset:3px;background-color:var(--selected-bg)}
 .bank{display:flex;flex-wrap:wrap;gap:.4em 1em;border:2px solid #333;border-radius:6px;padding:.5em .9em}
 .bank span{font-weight:700}
 .para{margin:0;max-width:62ch}
@@ -200,6 +274,7 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
       </button>
       <details class="switcher" data-current="homework"></details>
     </div>
+    <div class="tagbar" id="tagbar" role="group" aria-label="Show assignments tagged" hidden></div>
     <div class="list" id="list"><div class="list-empty">Loading assignments…</div></div>
   </aside>
   <main class="main" id="main">

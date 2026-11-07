@@ -6,7 +6,6 @@ const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const SIZES = { s: .02, m: .026, l: .034 };
-const SUBJECTS = ['Math', 'Writing', 'Reading', 'Other'];
 const ICON = {
   grip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>',
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>',
@@ -18,6 +17,7 @@ const ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
   wand: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 4V2M15 16v-2M8 9h2M20 9h2M17.8 11.8L19 13M17.8 6.2L19 5M3 21l9-9M12.2 6.2L11 5"/></svg>',
   check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>',
+  eraser: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 21h13M5.5 14.5l7-7a2 2 0 0 1 2.8 0l2.2 2.2a2 2 0 0 1 0 2.8L11 19H8l-2.5-2.5a2 2 0 0 1 0-2.8zM9 11l5 5"/></svg>',
   cam: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 7h4l2-3h6l2 3h4v13H3z"/><circle cx="12" cy="13" r="4"/></svg>',
 };
 
@@ -27,7 +27,9 @@ const viewMode = new Map();      // pageId -> 'clean' | 'photo'
 const genState = new Map();      // pageId -> {ctl} | {error}
 const typedTimers = new Map();
 const WFS = { s: '18px', m: '21px', l: '25px' };
-let assignments = [];            // sidebar list: [{id, title, subject, due, done, size, createdAt, pageCount, thumbKey}]
+let assignments = [];            // sidebar list: [{id, title, due, done, size, createdAt, pageCount, thumbKey, tags, untagged}]
+let tagFilter = '';               // show only assignments with this tag ('' = all)
+try { tagFilter = localStorage.getItem('hw:tag') || ''; } catch {}
 let currentId = null;
 let detail = null;               // current assignment: list fields + pages [{id, key, w, h}]
 let answers = new Map();         // id -> {p, x, y, w, t}, for current assignment
@@ -49,6 +51,7 @@ const ERR_TEXT = {
   bad_photo: 'Claude could not read that photo. A sharper, straighter photo usually helps.',
   refused: 'Claude would not make a clean copy of this page. Try a different photo.',
   not_found: 'That was already deleted.',
+  nothing_to_undo: 'There is nothing to put back.',
   access_not_configured: 'The site is not finished setting up: Cloudflare Access is not configured yet.',
 };
 const errText = (e, what) => ERR_TEXT[e?.code] || `${what} (${e?.code || 'error'})`;
@@ -73,6 +76,7 @@ async function refreshList(first) {
     assignments = await API.listAssignments();
     if (detail) syncListItem();
     renderList();
+    tagUntagged();
   } catch (e) {
     if (first) $('#list').innerHTML = `<div class="list-empty">${esc(errText(e, 'Could not load assignments'))}</div>`;
     else if (e.code === 'signed_out') toast(errText(e));
@@ -132,23 +136,114 @@ async function loadDetail(id, first) {
 function syncListItem() {
   const a = cur(); if (!a) return;
   const row = assignments.find(x => x.id === a.id); if (!row) return;
-  Object.assign(row, { title: a.title, subject: a.subject, due: a.due, done: a.done, size: a.size,
-    pageCount: a.pages.length, thumbKey: a.pages[0]?.key || null });
+  Object.assign(row, { title: a.title, due: a.due, done: a.done, size: a.size,
+    pageCount: a.pages.length, thumbKey: a.pages[0]?.key || null, tags: mergeTags(a.pages) });
 }
 
 /* ---------- list ---------- */
 function renderList() {
   const el = $('#list');
+  renderTagbar();
   if (!assignments.length) { el.innerHTML = '<div class="list-empty">No assignments yet. Press New to add the first worksheet.</div>'; return; }
-  el.innerHTML = assignments.map(a => {
+  const shown = tagFilter ? assignments.filter(a => hasTag(a, tagFilter) || a.id === currentId) : assignments;
+  el.innerHTML = shown.map(a => {
     const n = a.pageCount || 0;
     const thumb = a.thumbKey ? `style="background-image:url('${esc(API.imgUrl(a.thumbKey))}')"` : '';
-    const meta = [a.subject, a.due ? 'Due ' + fmtDue(a.due) : fmtDate(a.createdAt), n + (n === 1 ? ' page' : ' pages')].filter(Boolean).join(' · ');
+    const meta = [a.due ? 'Due ' + fmtDue(a.due) : fmtDate(a.createdAt), n + (n === 1 ? ' page' : ' pages')].join(' · ');
+    const tags = (a.tags || []).slice(0, 4).map(t => `<span>${esc(t)}</span>`).join('');
     return `<button class="row" type="button" data-id="${esc(a.id)}" aria-current="${a.id === currentId}">
       <span class="thumb" ${thumb}></span>
-      <span style="min-width:0"><div class="row-title">${esc(a.title || 'Untitled')}</div><div class="row-meta">${esc(meta)}</div></span>
+      <span style="min-width:0"><div class="row-title">${esc(a.title || 'Untitled')}</div><div class="row-meta">${esc(meta)}</div>${tags ? `<div class="row-tags">${tags}</div>` : ''}</span>
       <span class="pill ${a.done ? 'done' : 'todo'}">${a.done ? 'Done' : 'To do'}</span></button>`;
-  }).join('');
+  }).join('') || `<div class="list-empty">Nothing tagged “${esc(tagFilter)}”.</div>`;
+}
+
+/* ---------- tags ---------- */
+// Each page gets 1–3 tags (subject, topic) read off its photo by a small model; an assignment shows its pages' tags.
+const sameTag = (a, b) => a.toLowerCase() === b.toLowerCase();
+const hasTag = (a, t) => (a.tags || []).some(x => sameTag(x, t));
+function mergeTags(pages) {
+  const out = [];
+  for (const p of pages) for (const t of p.tags || []) if (!out.some(x => sameTag(x, t))) out.push(t);
+  return out;
+}
+function renderTagbar() {
+  const bar = $('#tagbar');
+  const count = new Map();
+  for (const a of assignments) for (const t of a.tags || []) {
+    const k = [...count.keys()].find(x => sameTag(x, t)) ?? t; count.set(k, (count.get(k) || 0) + 1);
+  }
+  if (tagFilter && ![...count.keys()].some(t => sameTag(t, tagFilter))) setTagFilter('', false);
+  bar.hidden = !count.size;
+  const tags = [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  bar.innerHTML = `<button type="button" class="tchip" data-tag="" aria-pressed="${!tagFilter}">All</button>` +
+    tags.map(([t, n]) => `<button type="button" class="tchip" data-tag="${esc(t)}" aria-pressed="${sameTag(t, tagFilter)}">${esc(t)}<small>${n}</small></button>`).join('');
+}
+function setTagFilter(t, render = true) {
+  tagFilter = t;
+  try { localStorage.setItem('hw:tag', t); } catch {}
+  if (render) renderList();
+}
+$('#tagbar').addEventListener('click', e => { const b = e.target.closest('[data-tag]'); if (b) setTagFilter(sameTag(b.dataset.tag, tagFilter) ? '' : b.dataset.tag); });
+
+/** A page's tags changed: update the open assignment, its page bar and the sidebar. */
+function applyTags(pageId, tags) {
+  for (const a of assignments) a.untagged = (a.untagged || []).filter(id => id !== pageId);
+  const a = cur(); const p = a?.pages.find(x => x.id === pageId);
+  if (p) { p.tags = tags; syncListItem(); const sec = document.querySelector(`.page[data-page="${pageId}"]`); if (sec) renderPageTags(sec); }
+  renderList();
+}
+
+// Tag pages that have none yet (new uploads, and pages from before tags existed), two at a time.
+const tagQueue = []; const tagQueued = new Set(); let tagRunning = 0, tagOff = false;
+function queueTag(pageId, assignmentId) {
+  if (tagOff || tagQueued.has(pageId)) return;
+  tagQueued.add(pageId); tagQueue.push({ pageId, assignmentId }); pumpTags();
+}
+function tagUntagged() { for (const a of assignments) for (const id of a.untagged || []) queueTag(id, a.id); }
+async function pumpTags() {
+  while (tagRunning < 2 && tagQueue.length && !tagOff) {
+    const { pageId, assignmentId } = tagQueue.shift(); tagRunning++;
+    const sec = document.querySelector(`.page[data-page="${pageId}"]`); if (sec) renderPageTags(sec, true);
+    API.autoTag(pageId).then(r => {
+      const row = assignments.find(x => x.id === assignmentId);
+      if (row && !cur()?.pages.some(p => p.id === pageId)) row.tags = mergeTags([{ tags: row.tags }, { tags: r.tags }]);
+      applyTags(pageId, r.tags);
+    }).catch(e => {
+      // No key / signed out: stop asking. Anything else: leave it for next time.
+      if (['not_configured', 'signed_out', 'access_not_configured'].includes(e.code)) tagOff = true;
+      tagQueued.delete(pageId);
+      const s = document.querySelector(`.page[data-page="${pageId}"]`); if (s) renderPageTags(s);
+    }).finally(() => { tagRunning--; pumpTags(); });
+  }
+}
+
+function renderPageTags(sec, busy) {
+  const slot = sec.querySelector('.ptags'); const a = cur(); if (!slot || !a) return;
+  const p = a.pages.find(x => x.id === sec.dataset.page); if (!p) return;
+  if (busy || (!p.tags && tagQueued.has(p.id))) { slot.innerHTML = '<span class="tagging">Reading tags…</span>'; return; }
+  slot.innerHTML = (p.tags || []).map((t, i) => `<span class="ptag">${esc(t)}<button type="button" data-rm="${i}" aria-label="Remove tag ${esc(t)}">${ICON.x}</button></span>`).join('') +
+    '<button type="button" class="ptag-add" data-add aria-label="Add a tag">+ Tag</button>';
+  const save = async tags => {
+    const before = p.tags; applyTags(p.id, tags);
+    try { applyTags(p.id, (await API.setTags(p.id, tags)).tags); }
+    catch (e) { applyTags(p.id, before); toast(errText(e, 'Tag not saved')); }
+  };
+  slot.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => save((p.tags || []).filter((_, i) => i !== +b.dataset.rm)));
+  slot.querySelector('[data-add]').onclick = () => {
+    const input = document.createElement('input');
+    Object.assign(input, { className: 'ptag-in', maxLength: 24, placeholder: 'New tag' });
+    input.setAttribute('aria-label', 'New tag');
+    slot.querySelector('[data-add]').replaceWith(input); input.focus();
+    let done = false;
+    const finish = ok => {
+      if (done) return; done = true;
+      const t = input.value.trim();
+      if (ok && t && !(p.tags || []).some(x => sameTag(x, t))) save([...(p.tags || []), t]); else renderPageTags(sec);
+    };
+    input.onkeydown = e => { if (e.key === 'Enter') finish(true); if (e.key === 'Escape') finish(false); };
+    input.onblur = () => finish(true);
+  };
 }
 $('#list').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) open(r.dataset.id); });
 
@@ -163,7 +258,7 @@ $('#newBtn').addEventListener('click', () => {
   // and create the assignment while the picker is up.
   $('#fileIn').click();
   const title = 'Homework ' + new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const p = API.createAssignment({ title, subject: 'Math' }).then(a => {
+  const p = API.createAssignment({ title }).then(a => {
     assignments.unshift(a);
     open(a.id);
     return a.id;
@@ -196,7 +291,6 @@ function headerHTML(a) {
       <label class="eyebrow" for="titleIn">Assignment</label>
       <input class="title-input" id="titleIn" value="${esc(a.title)}" autocomplete="off">
       <div class="fields">
-        <div class="seg" role="group" aria-label="Subject">${SUBJECTS.map(s => `<button type="button" data-subj="${s}" aria-pressed="${a.subject === s}">${s}</button>`).join('')}</div>
         <label class="field" for="dueIn">Due <input type="date" id="dueIn" value="${esc(a.due || '')}"></label>
       </div>
     </div>
@@ -216,7 +310,6 @@ function renderHeaderOnly() {
   const slot = $('#headSlot'); if (!slot) return;
   const t = $('#titleIn'); if (document.activeElement !== t) t.value = a.title || '';
   if (document.activeElement !== $('#dueIn')) $('#dueIn').value = a.due || '';
-  document.querySelectorAll('[data-subj]').forEach(b => b.setAttribute('aria-pressed', a.subject === b.dataset.subj));
   document.querySelectorAll('[data-size]').forEach(b => b.setAttribute('aria-pressed', (a.size||'m') === b.dataset.size));
   const d = $('#doneBtn'); d.className = 'btn ' + (a.done ? '' : 'primary'); d.innerHTML = ICON.check + (a.done ? 'Mark not done' : 'Mark done');
   document.querySelectorAll('.sheet').forEach(s => s.style.setProperty('--fs', SIZES[a.size || 'm']));
@@ -247,7 +340,6 @@ function wireHeader() {
   $('#titleIn').oninput = e => { clearTimeout(tt); const v = e.target.value; tt = setTimeout(() => update({ title: v.trim() || 'Untitled' }), 500); };
   $('#titleIn').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
   $('#dueIn').onchange = e => update({ due: e.target.value });
-  document.querySelectorAll('[data-subj]').forEach(b => b.onclick = () => update({ subject: b.dataset.subj }));
   document.querySelectorAll('[data-size]').forEach(b => b.onclick = () => update({ size: b.dataset.size }));
   $('#doneBtn').onclick = () => update({ done: !cur().done });
   $('#cleanAllBtn').onclick = cleanAll;
@@ -300,7 +392,7 @@ function renderPages() {
   }
   el.innerHTML = `<div class="hint">${ICON.add.replace('aria-hidden', 'class="ico" aria-hidden')}<span><b>Clean copy</b> rebuilds a messy photo as a tidy worksheet with boxes to type in. On the <b>photo</b>, tap anywhere to type an answer right there.</span></div>` +
     pages.map((p, i) => `<section class="page" data-page="${esc(p.id)}" aria-label="Page ${i + 1}">
-      <div class="page-bar"><span class="eyebrow">Page ${i + 1} of ${pages.length}<span class="prog"></span></span>
+      <div class="page-bar"><span><span class="eyebrow">Page ${i + 1} of ${pages.length}<span class="prog"></span></span><span class="ptags"></span></span>
         <div class="page-tools"><span class="vtools" style="display:contents"></span>
           <button class="btn ghost" type="button" data-act="dl" data-i="${i}">${ICON.dl}Save image</button>
           ${i > 0 ? `<button class="btn ghost icon" type="button" data-act="up" data-i="${i}" aria-label="Move page up">${ICON.up}</button>` : ''}
@@ -314,8 +406,9 @@ function renderPages() {
   $('#dropPick').onclick = pickFiles;
   wireDrop($('#drop'));
   el.querySelectorAll('.sheet').forEach(s => { ro.observe(s); s.addEventListener('click', onSheetClick); });
+  el.querySelectorAll('.page .clean').forEach(wireFixTaps);
   el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => pageAction(b.dataset.act, +b.dataset.i, b));
-  el.querySelectorAll('.page').forEach(refreshPage);
+  el.querySelectorAll('.page').forEach(sec => { refreshPage(sec); renderPageTags(sec); });
   syncBoxes();
 }
 
@@ -379,10 +472,13 @@ function refreshPage(sec) {
     box.querySelector('[data-p]').onclick = () => { genState.delete(pid); viewMode.set(pid, 'photo'); refreshPage(sec); };
   } else if (has && String(cleanMap.get(pid).at) !== box.dataset.at) {
     box.dataset.at = String(cleanMap.get(pid).at);
-    box.innerHTML = renderWorksheet(cleanMap.get(pid).data, pid);
-    wireWorksheet(box, pid);
+    const data = cleanMap.get(pid).data;
+    if (data?.v === 2) renderPage(box, data, pid);
+    else { box.innerHTML = renderWorksheet(data, pid); wireWorksheet(box, pid); }
+    box.insertAdjacentHTML('beforeend', '<div class="kidbar" role="toolbar" aria-label="Tools"></div>');
     fillTyped(sec);
-  }
+    renderKidbar(sec);
+  } else if (has && !fixState.has(pid)) renderKidbar(sec);
   updateProgress(sec);
 }
 
@@ -406,7 +502,8 @@ async function makeClean(pid) {
     genState.delete(pid);
     // The server clears typed values when it rebuilds a clean copy: field ids are renumbered.
     clearTimeout(typedTimers.get(pid)); typedTimers.delete(pid); typedMap.delete(pid);
-    cleanMap.set(pid, { data: r.data, at: r.at });
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: false });
+    fixState.delete(pid);
     viewMode.set(pid, 'clean');
   } catch (e) {
     if (e.code === 'cancelled') genState.delete(pid);
@@ -422,7 +519,228 @@ async function cleanAll() {
   for (const p of pages) { if (currentId === a.id) await makeClean(p.id); }
 }
 
-/* unchanged from the prototype */
+/* ---------- crayons ---------- */
+// Tap a word cell or a choice to colour it. Saved as a typed value: "3:yellow,7:green" (cell index : crayon).
+// A bare index ("2") is a choice picked before crayons existed; it shows in the old blue.
+const CRAYONS = { yellow: '#FFE066', orange: '#FFC078', pink: '#FAA2C1', purple: '#D0BFFF', blue: '#74C0FC', green: '#8CE99A' };
+let crayon = 'yellow';
+try { const c = localStorage.getItem('hw:crayon'); if (c in CRAYONS || c === 'erase') crayon = c; } catch {}
+function parsePaint(v) {
+  const m = new Map();
+  for (const part of String(v ?? '').split(',')) {
+    const [k, c] = part.split(':');
+    if (/^\d+$/.test(k)) m.set(k, c in CRAYONS ? c : '');
+  }
+  return m;
+}
+const paintStr = m => [...m].map(([k, c]) => c ? `${k}:${c}` : k).join(',');
+function showPaint(g, m) {
+  g.querySelectorAll('[data-k]').forEach(b => {
+    const on = m.has(b.dataset.k), c = CRAYONS[m.get(b.dataset.k)];
+    b.setAttribute('aria-pressed', on);
+    b.classList.toggle('painted', on && !!c);
+    if (on && c) b.style.setProperty('--paint', c); else b.style.removeProperty('--paint');
+  });
+}
+function crayonsHTML() {
+  return `<div class="crayons" role="radiogroup" aria-label="Crayons">${Object.entries(CRAYONS).map(([name, c]) =>
+    `<button type="button" class="crayon" role="radio" data-c="${name}" style="--c:${c}" aria-checked="${crayon === name}" aria-label="${name}"></button>`).join('')}
+    <button type="button" class="crayon erase" role="radio" data-c="erase" aria-checked="${crayon === 'erase'}" aria-label="Eraser">${ICON.eraser}</button></div>`;
+}
+function setCrayon(c) {
+  crayon = c;
+  try { localStorage.setItem('hw:crayon', c); } catch {}
+  document.querySelectorAll('.crayon').forEach(b => b.setAttribute('aria-checked', b.dataset.c === c));
+}
+
+/* ---------- HTML pages (clean copy v2) ---------- */
+// Claude writes each page as HTML (src/prompt.ts). Only the tags and attributes below get through; then
+// inputs (data-f), colourable things (data-paint) and pick-one/pick-many groups (data-group) are made interactive.
+const PAGE_TAGS = new Set(('div span p br hr h1 h2 h3 h4 h5 h6 b strong i em u s sub sup small table thead tbody tfoot tr th td ' +
+  'caption colgroup col ul ol li input textarea label section header footer figure figcaption ' +
+  'svg g line rect circle ellipse path polygon polyline text tspan').split(' '));
+const DROP_TAGS = new Set(('script style iframe frame frameset object embed link meta base img image video audio source track picture ' +
+  'canvas form select option template noscript title math foreignobject use animate set animatemotion animatetransform').split(' '));
+const PAGE_ATTRS = new Set(['style', 'class', 'data-f', 'data-kind', 'data-lines', 'data-paint', 'data-group', 'data-fix-here', 'colspan', 'rowspan', 'span', 'start']);
+const SVG_ATTRS = new Set(('viewbox width height x y x1 y1 x2 y2 cx cy r rx ry d points dx dy fill stroke stroke-width stroke-dasharray ' +
+  'stroke-linecap stroke-linejoin transform font-size font-weight text-anchor dominant-baseline opacity fill-opacity preserveaspectratio').split(' '));
+const SVG_TAGS = new Set('svg g line rect circle ellipse path polygon polyline text tspan'.split(' '));
+const FIELD_ID = /^[a-z]\d{1,4}$/;
+const BAD_VALUE = /javascript:|vbscript:|url\s*\(|expression\s*\(|@import|behavior\s*:|-moz-binding|position\s*:\s*(fixed|sticky)/i;
+
+function sanitizePage(html) {
+  const body = new DOMParser().parseFromString('<!doctype html><body>' + String(html || ''), 'text/html').body;
+  const seen = new Set(); let auto = 0;
+  const fresh = () => { let id; do id = 'z' + (++auto); while (seen.has(id)); seen.add(id); return id; };
+  const walk = node => {
+    for (const ch of [...node.childNodes]) {
+      if (ch.nodeType === 3) continue;
+      if (ch.nodeType !== 1) { ch.remove(); continue; }
+      const tag = ch.localName.toLowerCase();
+      if (DROP_TAGS.has(tag)) { ch.remove(); continue; }
+      walk(ch);
+      if (!PAGE_TAGS.has(tag)) { ch.replaceWith(...ch.childNodes); continue; }
+      for (const a of [...ch.attributes]) {
+        const n = a.name.toLowerCase();
+        const ok = (PAGE_ATTRS.has(n) || (SVG_TAGS.has(tag) && SVG_ATTRS.has(n))) && !BAD_VALUE.test(a.value) && a.value.length <= 2000;
+        if (!ok) ch.removeAttribute(a.name);
+      }
+      if (ch.hasAttribute('class')) { if (/\bfig\b/.test(ch.getAttribute('class'))) ch.setAttribute('class', 'fig'); else ch.removeAttribute('class'); }
+      if (ch.hasAttribute('data-f') && tag !== 'input' && tag !== 'textarea') ch.removeAttribute('data-f');
+      if ((tag === 'input' || tag === 'textarea')) { ch.removeAttribute('data-paint'); if (!ch.hasAttribute('data-f')) ch.setAttribute('data-f', ''); }
+      for (const k of ['data-f', 'data-paint']) if (ch.hasAttribute(k)) {
+        const v = ch.getAttribute(k);
+        if (!FIELD_ID.test(v) || seen.has(v)) ch.setAttribute(k, fresh()); else seen.add(v);
+      }
+    }
+  };
+  walk(body);
+  return body;
+}
+
+function renderPage(box, data, pid) {
+  const root = document.createElement('div');
+  root.className = 'ws ws2';
+  root.append(...sanitizePage(data.html).childNodes);
+  root.querySelectorAll('input').forEach(el => {
+    const kind = ['number', 'word', 'sentence'].includes(el.dataset.kind) ? el.dataset.kind : 'word';
+    Object.assign(el, { type: 'text', className: 'blank ' + kind, autocomplete: 'off', spellcheck: false });
+    el.setAttribute('aria-label', 'Answer');
+    if (kind === 'number') { el.inputMode = 'numeric'; el.size = 3; } else if (kind === 'word') el.size = 8;
+  });
+  root.querySelectorAll('textarea').forEach(el => { el.className = 'lined'; el.rows = Math.max(2, Math.min(12, +el.dataset.lines || 3)); el.setAttribute('aria-label', 'Writing answer'); });
+  root.querySelectorAll('[data-paint]').forEach(el => { el.classList.add('pt'); el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); el.setAttribute('aria-pressed', 'false'); });
+  box.replaceChildren(root);
+  const sec = box.closest('.page');
+  root.querySelectorAll('input[data-f],textarea[data-f]').forEach(el => el.addEventListener('input', () => setTyped(pid, el.dataset.f, el.value, sec)));
+  const tap = el => {
+    const id = el.dataset.paint, vals = typedMap.get(pid) || {};
+    const next = crayon === 'erase' || vals[id] === crayon ? '' : crayon;
+    if (next) { // pick-one: colouring one clears the others in its group
+      const g = el.closest('[data-group="one"]');
+      g?.querySelectorAll('[data-paint]').forEach(o => { if (o !== el && vals[o.dataset.paint]) { setTyped(pid, o.dataset.paint, '', sec); showPaint2(o, ''); } });
+    }
+    setTyped(pid, id, next, sec); showPaint2(el, next);
+  };
+  root.addEventListener('click', e => { const el = e.target.closest('[data-paint]'); if (el && root.contains(el)) tap(el); });
+  root.addEventListener('keydown', e => { const el = e.target.closest?.('[data-paint]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); tap(el); } });
+}
+function showPaint2(el, c) {
+  const col = CRAYONS[c];
+  el.setAttribute('aria-pressed', !!col);
+  el.classList.toggle('painted', !!col);
+  if (col) el.style.setProperty('--paint', col); else el.style.removeProperty('--paint');
+}
+/** The page's HTML as Claude wrote it (sanitized), with data-fix-here on the element at `idx` (-1: whole page). */
+function markedPage(html, idx) {
+  const body = sanitizePage(html);
+  body.querySelectorAll('[data-fix-here]').forEach(e => e.removeAttribute('data-fix-here'));
+  if (idx >= 0) body.querySelectorAll('*')[idx]?.setAttribute('data-fix-here', '1');
+  return body.innerHTML;
+}
+
+/* ---------- kid toolbar: crayons, Fix, Put it back ---------- */
+const fixState = new Map(); // pageId -> {step: 'where'|'what'|'busy'|'error', el, idx, problem, note, ctl, error}
+const PROBLEMS = [
+  ['type', '✏️', "I can't write here"],
+  ['color', '🖍️', "I can't color it"],
+  ['words', '🔤', 'The words are wrong'],
+  ['missing', '🧩', 'Something is missing'],
+  ['looks', '👀', 'It looks different'],
+];
+
+function renderKidbar(sec) {
+  const pid = sec.dataset.page, box = sec.querySelector('.clean'), bar = box.querySelector('.kidbar');
+  if (!bar) return;
+  const f = fixState.get(pid);
+  box.classList.toggle('fixing', f?.step === 'where' || f?.step === 'what');
+  box.querySelectorAll('.fix-target').forEach(e => e.classList.remove('fix-target'));
+  if (f?.el && f.step !== 'where') f.el.classList.add('fix-target');
+  bar.classList.toggle('wide', !!f && f.step !== 'busy');
+  const cancel = '<button type="button" class="kbtn ghost" data-cancel>Cancel</button>';
+  if (!f) {
+    const paint = !!box.querySelector('[data-paint], .paint [data-k]');
+    bar.innerHTML = (paint ? crayonsHTML() : '') +
+      `<button type="button" class="kbtn fix" data-fix><span aria-hidden="true">🔧</span> Fix</button>` +
+      (cleanMap.get(pid)?.canUndo ? `<button type="button" class="kbtn" data-unfix><span aria-hidden="true">↩️</span> Put it back</button>` : '');
+  } else if (f.step === 'where') {
+    bar.innerHTML = `<p class="kmsg"><span aria-hidden="true">👆</span> Tap the part that's wrong</p>
+      <div class="kact"><button type="button" class="kbtn" data-whole>The whole page</button>${cancel}</div>`;
+  } else if (f.step === 'what') {
+    bar.innerHTML = `<p class="kmsg">What's wrong${f.el ? ' here' : ''}?</p>
+      <div class="kprobs">${PROBLEMS.map(([k, e, t]) => `<button type="button" class="kprob" data-prob="${k}" aria-pressed="${f.problem === k}"><span class="e" aria-hidden="true">${e}</span>${t}</button>`).join('')}</div>
+      <input class="knote" maxlength="300" placeholder="Tell me more (tap 🎤 on the keyboard to talk)" aria-label="Tell me more" value="${esc(f.note || '')}">
+      <div class="kact"><button type="button" class="kbtn primary" data-go ${f.problem || f.note ? '' : 'disabled'}><span aria-hidden="true">✨</span> Fix it!</button>${cancel}</div>`;
+  } else if (f.step === 'busy') {
+    bar.innerHTML = `<p class="kmsg"><span class="spin" aria-hidden="true">🔧</span> Fixing it… this takes about a minute</p><button type="button" class="kbtn ghost" data-stop>Stop</button>`;
+  } else {
+    bar.innerHTML = `<p class="kmsg err">${esc(f.error)}</p><div class="kact"><button type="button" class="kbtn primary" data-go>Try again</button>${cancel}</div>`;
+  }
+  const on = (sel, fn) => bar.querySelectorAll(sel).forEach(b => b.onclick = fn);
+  on('.crayon', e => setCrayon(e.currentTarget.dataset.c));
+  on('[data-fix]', () => { fixState.set(pid, { step: 'where' }); renderKidbar(sec); });
+  on('[data-unfix]', () => unfix(sec));
+  on('[data-cancel]', () => { fixState.delete(pid); renderKidbar(sec); });
+  on('[data-whole]', () => { Object.assign(f, { step: 'what', el: null, idx: -1 }); renderKidbar(sec); });
+  on('[data-prob]', e => { f.problem = f.problem === e.currentTarget.dataset.prob ? '' : e.currentTarget.dataset.prob; renderKidbar(sec); });
+  on('[data-go]', () => runFix(sec));
+  on('[data-stop]', () => f.ctl?.abort());
+  const note = bar.querySelector('.knote');
+  if (note) note.oninput = () => { f.note = note.value; bar.querySelector('[data-go]').disabled = !(f.problem || f.note.trim()); };
+}
+
+// While fixing, a tap on the page picks the part that's wrong instead of typing or colouring.
+function wireFixTaps(box) {
+  const picking = e => {
+    const f = fixState.get(box.closest('.page').dataset.page);
+    const root = box.querySelector('.ws');
+    return f && (f.step === 'where' || f.step === 'what') && root?.contains(e.target) ? { f, root } : null;
+  };
+  box.addEventListener('pointerdown', e => { if (picking(e)) e.preventDefault(); }, true);
+  box.addEventListener('focusin', e => { if (picking(e)) e.target.blur(); }, true);
+  box.addEventListener('click', e => {
+    const p = picking(e); if (!p) return;
+    e.preventDefault(); e.stopPropagation();
+    let t = e.target.closest('svg') || e.target;
+    let el = t.closest('td, th, li, p, h1, h2, h3, h4, figure, label, [data-group], table, .it, .bank, .fig, section, div, svg');
+    if (!el || el === p.root || !p.root.contains(el)) el = null;
+    Object.assign(p.f, { step: 'what', el, idx: el ? [...p.root.querySelectorAll('*')].indexOf(el) : -1 });
+    renderKidbar(box.closest('.page'));
+  }, true);
+}
+
+async function runFix(sec) {
+  const pid = sec.dataset.page, f = fixState.get(pid), c = cleanMap.get(pid);
+  if (!f || !c) return;
+  const body = { problem: f.problem || 'other', note: (f.note || '').trim() };
+  if (c.data?.v === 2) body.page = markedPage(c.data.html, f.idx ?? -1);
+  else body.snippet = f.el ? f.el.textContent.replace(/\s+/g, ' ').trim().slice(0, 500) : '';
+  f.step = 'busy'; f.ctl = new AbortController();
+  renderKidbar(sec);
+  try {
+    const r = await API.fixClean(pid, body, f.ctl.signal);
+    fixState.delete(pid);
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: r.canUndo });
+    toast('All fixed! ✨');
+  } catch (e) {
+    if (e.code === 'cancelled') fixState.delete(pid);
+    else Object.assign(f, { step: 'error', error: ERR_TEXT[e.code] || "That didn't work. Try again.", ctl: null });
+  }
+  const s = document.querySelector(`.page[data-page="${pid}"]`);
+  if (s) { refreshPage(s); renderKidbar(s); }
+}
+
+async function unfix(sec) {
+  const pid = sec.dataset.page;
+  try {
+    const r = await API.unfixClean(pid);
+    cleanMap.set(pid, { data: r.data, at: r.at, canUndo: false });
+    toast('Put back the way it was');
+  } catch (e) { toast(errText(e, 'Could not put it back')); }
+  const s = document.querySelector(`.page[data-page="${pid}"]`);
+  if (s) refreshPage(s);
+}
+
 function renderWorksheet(d, pid) {
   let n = 0;
   const T = s => esc(s ?? '');
@@ -440,30 +758,51 @@ function renderWorksheet(d, pid) {
         return `<div class="it it-vert">${lbl(it)}<div class="vert">${rows.map(r => `<div>${T(r)}</div>`).join('')}<div class="row2"><span>${T(it.op)}</span><span>${T(last)}</span></div>${blank({ blank: 'number' })}</div></div>`;
       }
       case 'write': { const id = 'w' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><textarea class="lined" data-f="${id}" rows="${Math.max(2, Math.min(12, +it.lines || 3))}" aria-label="Writing answer"></textarea></div></div>`; }
-      case 'choice': { const id = 'c' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts" data-f="${id}" role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'choice': { const id = 'c' + (n++); return `<div class="it">${lbl(it)}<div><p class="prompt">${T(it.prompt)}</p><div class="opts paint" data-f="${id}"${it.many ? ' data-many="1"' : ''} role="group">${(it.options || []).map((o, k) => `<button type="button" class="opt" data-k="${k}" aria-pressed="false">${T(o)}</button>`).join('')}</div></div></div>`; }
+      case 'table': {
+        const rows = (Array.isArray(it.rows) ? it.rows : []).filter(Array.isArray);
+        if (!rows.length) return '';
+        const cols = Math.max(...rows.map(r => r.length)), mark = ['color', 'circle', 'cross'].includes(it.pick) ? it.pick : '';
+        const id = 't' + (n++); let k = 0;
+        const cell = c => {
+          if (typeof c === 'string' || typeof c === 'number') return `<td><button type="button" class="cell" data-k="${k++}" aria-pressed="false">${T(String(c))}</button></td>`;
+          if (Array.isArray(c)) return `<td class="mixed"><span class="flow">${c.map(p => typeof p === 'string' ? `<span>${T(p)}</span>` : blank(p)).join('')}</span></td>`;
+          if (c?.blank) return `<td class="mixed">${blank(c)}</td>`;
+          return '<td></td>';
+        };
+        const body = rows.map(r => `<tr>${r.map(cell).join('')}${'<td></td>'.repeat(cols - r.length)}</tr>`).join('');
+        // Any word cell can be coloured; it only counts as a question when the sheet says to colour/circle/cross cells.
+        return `<table class="ws-table${k ? ' paint' : ''}"${k ? ` data-f="${id}" data-many="1"${mark ? ` data-mark="${mark}"` : ' data-count="0"'}` : ''}><tbody>${body}</tbody></table>`;
+      }
       case 'wordbank': return `<div class="bank" aria-label="Word bank">${(it.words || []).map(w => `<span>${T(w)}</span>`).join('')}</div>`;
       case 'text': return `<p class="para">${T(it.text)}</p>`;
       case 'figure': return `<div class="fig"><span>Picture on the worksheet: ${T(it.description)}</span><button class="btn" type="button" data-show-photo>Show photo</button></div>`;
       default: return it?.text ? `<p class="para">${T(it.text)}</p>` : '';
     }
   };
+  const sections = (d.sections || []).map(s => {
+    const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
+    // Older clean copies often repeat the heading as the instructions; show it once.
+    const instr = s.instructions && s.instructions.trim() !== (s.heading || '').trim() ? s.instructions : '';
+    const body = items.map(item).join('');
+    return `<section class="ws-sec">${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${instr ? `<p class="ws-instr">${T(instr)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${body}</div></section>`;
+  }).join('');
   return `<div class="ws">
     ${d.title ? `<h2 class="ws-title">${T(d.title)}</h2>` : ''}
     ${d.instructions ? `<p class="ws-instr">${T(d.instructions)}</p>` : ''}
-    ${(d.sections || []).map(s => {
-      const items = s.items || []; const grid = items.length > 1 && items.every(x => x?.type === 'vertical');
-      return `<section class="ws-sec">${s.heading ? `<h3>${T(s.heading)}</h3>` : ''}${s.instructions ? `<p class="ws-instr">${T(s.instructions)}</p>` : ''}<div class="ws-items${grid ? ' grid' : ''}">${items.map(item).join('')}</div></section>`;
-    }).join('')}
+    ${sections}
   </div>`;
 }
 
 function wireWorksheet(box, pid) {
   const sec = box.closest('.page');
   box.querySelectorAll('input[data-f],textarea[data-f]').forEach(el => el.addEventListener('input', () => setTyped(pid, el.dataset.f, el.value, sec)));
-  box.querySelectorAll('.opts').forEach(g => g.querySelectorAll('.opt').forEach(b => b.onclick = () => {
-    const now = b.getAttribute('aria-pressed') === 'true' ? '' : b.dataset.k;
-    g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === now));
-    setTyped(pid, g.dataset.f, now, sec);
+  box.querySelectorAll('.paint[data-f]').forEach(g => g.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+    const f = g.dataset.f, m = parsePaint((typedMap.get(pid) || {})[f]), k = b.dataset.k;
+    if (crayon === 'erase' || (m.has(k) && (m.get(k) || 'yellow') === crayon)) m.delete(k);
+    else { if (!g.dataset.many) m.clear(); m.set(k, crayon); }
+    setTyped(pid, f, paintStr(m), sec);
+    showPaint(g, m);
   }));
   box.querySelectorAll('[data-show-photo]').forEach(b => b.onclick = () => { viewMode.set(pid, 'photo'); refreshPage(sec); });
 }
@@ -483,7 +822,8 @@ function setTyped(pid, f, v, sec) {
 function fillTyped(sec) {
   const vals = typedMap.get(sec.dataset.page) || {};
   sec.querySelectorAll('.clean input[data-f], .clean textarea[data-f]').forEach(el => { if (document.activeElement !== el && el.value !== (vals[el.dataset.f] || '')) el.value = vals[el.dataset.f] || ''; });
-  sec.querySelectorAll('.clean .opts').forEach(g => g.querySelectorAll('.opt').forEach(o => o.setAttribute('aria-pressed', o.dataset.k === String(vals[g.dataset.f] ?? ''))));
+  sec.querySelectorAll('.clean .paint[data-f]').forEach(g => showPaint(g, parsePaint(vals[g.dataset.f])));
+  sec.querySelectorAll('.clean [data-paint]').forEach(el => showPaint2(el, vals[el.dataset.paint]));
   updateProgress(sec);
 }
 
@@ -491,9 +831,11 @@ function updateProgress(sec) {
   const pr = sec.querySelector('.prog'); if (!pr) return;
   const box = sec.querySelector('.clean');
   if (box.hidden || !cleanMap.has(sec.dataset.page)) { pr.textContent = ''; return; }
-  const fields = box.querySelectorAll('[data-f]'); const vals = typedMap.get(sec.dataset.page) || {};
-  const done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
-  pr.textContent = fields.length ? ` · ${done} of ${fields.length} answered` : '';
+  const fields = box.querySelectorAll('[data-f]:not([data-count="0"])'); const vals = typedMap.get(sec.dataset.page) || {};
+  let total = fields.length, done = [...fields].filter(f => String(vals[f.dataset.f] ?? '').trim()).length;
+  // A colouring question (data-group) counts once, answered when anything in it is coloured.
+  box.querySelectorAll('[data-group]').forEach(g => { total++; if ([...g.querySelectorAll('[data-paint]')].some(p => vals[p.dataset.paint])) done++; });
+  pr.textContent = total ? ` · ${done} of ${total} answered` : '';
 }
 
 /* ---------- uploads ---------- */
@@ -503,6 +845,10 @@ function wireDrop(el) {
   el.addEventListener('dragleave', () => el.classList.remove('over'));
   el.addEventListener('drop', e => { e.preventDefault(); el.classList.remove('over'); addFiles([...e.dataTransfer.files]); });
 }
+// Windows and Android pickers can hide .heic files under image/*, so name them.
+// Not on iPhone/iPad: there image/* alone makes iOS hand over Photos picks as JPEG.
+if (!/iPhone|iPad|iPod/.test(navigator.userAgent) && !(navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent)))
+  $('#fileIn').accept += ',.heic,.heif,image/heic,image/heif';
 $('#fileIn').addEventListener('change', e => {
   const f = [...e.target.files]; e.target.value = '';
   const target = uploadTarget; uploadTarget = null;
@@ -510,7 +856,7 @@ $('#fileIn').addEventListener('change', e => {
 });
 document.addEventListener('paste', e => {
   if (!currentId) return;
-  const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/') || x.type === 'application/pdf');
+  const f = [...(e.clipboardData?.files || [])].filter(x => x.type.startsWith('image/') || x.type === 'application/pdf' || HEIC_EXT.test(x.name));
   if (f.length) { e.preventDefault(); addFiles(f); }
 });
 
@@ -533,43 +879,87 @@ function loadPdf() {
 }
 
 function canvasToBlob(c) { return new Promise(r => c.toBlob(r, 'image/jpeg', .86)); }
+
+// iPhone photos are HEIC. Safari opens them itself; Chrome, Firefox and Edge can't,
+// so they get a HEIC decoder (libheif), loaded only the first time one is needed.
+const HEIC_EXT = /\.(heic|heif)$/i;
+async function isHeic(file) {
+  if (/^image\/hei[cf]/i.test(file.type) || HEIC_EXT.test(file.name)) return true;
+  const brand = new TextDecoder().decode(await file.slice(8, 12).arrayBuffer());
+  return ['heic', 'heix', 'hevc', 'hevx', 'heim', 'heis', 'mif1', 'msf1'].includes(brand);
+}
+let heicReady = null;
+function loadHeic() {
+  if (!heicReady) heicReady = loadScript('https://cdn.jsdelivr.net/npm/heic-to@1.6.5/dist/iife/heic-to.js')
+    .then(() => window.HeicTo)
+    .catch(e => { heicReady = null; throw Object.assign(new Error('heic_load'), { code: 'heic_load', cause: e }); });
+  return heicReady;
+}
+function loadImageEl(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { URL.revokeObjectURL(url); res(im); };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('image')); };
+    im.src = url;
+  });
+}
+async function decodeImage(file) {
+  try { return await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch {}
+  try { return await loadImageEl(file); }
+  catch (e) {
+    if (!(await isHeic(file))) throw Object.assign(e, { code: 'image_unreadable' });
+  }
+  const HeicTo = await loadHeic();
+  try { return await HeicTo({ blob: file, type: 'bitmap' }); }
+  catch (e) { throw Object.assign(new Error('heic'), { code: 'heic_unreadable', cause: e }); }
+}
 async function imageFileToCanvas(file) {
   const MAX = 2000;
-  let bmp;
-  try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
-  catch {
-    bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  }
+  const bmp = await decodeImage(file);
   const w0 = bmp.width, h0 = bmp.height, k = Math.min(1, MAX / Math.max(w0, h0));
   const c = document.createElement('canvas'); c.width = Math.round(w0 * k); c.height = Math.round(h0 * k);
   const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close?.();
   return c;
 }
 
-async function addFiles(files, target) {
+// Batches run one after another, so picking more photos mid-upload keeps the page order.
+let uploadQueue = Promise.resolve();
+function addFiles(files, target) {
+  const dest = target || currentId; // a Promise<id> from "New", or the open assignment's id
+  const run = uploadQueue.then(() => addFilesNow(files, dest));
+  uploadQueue = run.catch(() => {});
+  return run;
+}
+
+async function addFilesNow(files, dest) {
   const jobs = [];
   for (const f of files) {
     if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) jobs.push({ pdf: f });
-    else if (f.type.startsWith('image/') || /\.(jpe?g|png|heic|webp|gif)$/i.test(f.name)) jobs.push({ img: f });
+    else if (f.type.startsWith('image/') || /\.(jpe?g|png|heic|heif|webp|gif)$/i.test(f.name)) jobs.push({ img: f });
   }
   if (!jobs.length) return toast('Pick photos or a PDF.');
   let id;
-  try { id = target ? await target : currentId; } catch { return; }
+  try { id = await dest; } catch { return; }
   if (!id) return;
   const added = [];
-  try {
-    // expand PDFs to per-page jobs
-    const flat = [];
-    for (const j of jobs) {
-      if (j.img) { flat.push(j); continue; }
+  let failed = 0, lastErr = null;
+  // Each photo or PDF page is its own try, so one bad file doesn't stop the rest.
+  const fail = (e, n = 1) => { failed += n; lastErr = e; console.warn('upload failed', e); };
+  const flat = [];
+  for (const j of jobs) {
+    if (j.img) { flat.push(j); continue; }
+    try {
       setBusy('Opening PDF…', 0);
       const lib = await loadPdf();
       const doc = await lib.getDocument({ data: await j.pdf.arrayBuffer() }).promise;
       for (let n = 1; n <= doc.numPages; n++) flat.push({ pdfDoc: doc, n });
-    }
-    for (let k = 0; k < flat.length; k++) {
-      setBusy(`Adding page ${k + 1} of ${flat.length}…`, k / flat.length);
-      const j = flat[k];
+    } catch (e) { fail(e); }
+  }
+  for (let k = 0; k < flat.length; k++) {
+    setBusy(`Adding page ${k + 1} of ${flat.length}…`, k / flat.length);
+    const j = flat[k];
+    try {
       let c;
       if (j.img) c = await imageFileToCanvas(j.img);
       else {
@@ -580,19 +970,23 @@ async function addFiles(files, target) {
         const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
         await page.render({ canvasContext: g, viewport: vp }).promise;
       }
+      const { width: w, height: h } = c;
       const blob = await canvasToBlob(c);
-      added.push(await API.uploadPage(id, blob, c.width, c.height));
-    }
-    setBusy(null);
-    toast(added.length === 1 ? 'Page added' : added.length + ' pages added');
-  } catch (e) {
-    setBusy(null);
-    toast((added.length ? 'Some pages did not upload' : 'The pages did not upload') + ' (' + (e?.code || e?.message || 'error') + ')');
+      c.width = c.height = 0; // free the pixels before the next photo (matters on iPhone)
+      added.push(await API.uploadPage(id, blob, w, h));
+    } catch (e) { fail(e); }
   }
+  setBusy(null);
+  const code = lastErr ? ' (' + (lastErr.code || lastErr.message || 'error') + ')' : '';
+  const pages = n => n === 1 ? '1 page' : n + ' pages';
+  if (!failed) toast(added.length === 1 ? 'Page added' : added.length + ' pages added');
+  else if (added.length) toast(`${pages(added.length)} added, ${pages(failed)} did not upload${code}`);
+  else toast((failed === 1 ? 'The page did not upload' : 'The pages did not upload') + code);
   if (!added.length) return;
   const a = cur();
   if (a && a.id === id) {
-    a.pages.push(...added.map(p => ({ id: p.id, key: p.key, w: p.w, h: p.h })));
+    a.pages.push(...added.map(p => ({ id: p.id, key: p.key, w: p.w, h: p.h, tags: null })));
+    for (const p of added) queueTag(p.id, id);
     syncListItem(); renderList(); renderPages();
     // Make clean copies straight away, one page at a time.
     (async () => { for (const p of added) if (currentId === id) await makeClean(p.id); })();
