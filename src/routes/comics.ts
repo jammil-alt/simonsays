@@ -3,7 +3,7 @@ import { type Env, HttpError, checkId, json, readJson, uid } from "../env";
 import { SCRIPT_SCHEMA, SCRIPT_SYSTEM, type Script, blockedWords, characterPrompt, panelPrompt, scriptText } from "../comic-prompt";
 import { type Picture, drawPicture } from "../gemini";
 import { mockPicture, mockScript } from "../comic-mock";
-import { type VoicePlan, directVoices, speakLine } from "../voice";
+import { VOICE_VERSION, type VoicePlan, directVoices, speakTake } from "../voice";
 
 const MAX_PANELS = 6, MAX_CHARS = 3;
 const FALLBACK_MODELS = new Set(["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"]);
@@ -227,41 +227,53 @@ export async function deleteComic(env: Env, id: string): Promise<Response> {
 /* ---------- read-aloud voices ---------- */
 
 const planView = (plan: VoicePlan, images: Record<string, string>) => ({
-  voices: plan.voices,
-  lines: plan.lines.map((l, k) => ({ k, panel: l.panel, who: l.who, text: l.text, key: images[`voice-${k}`] || null })),
+  v: plan.v,
+  takes: plan.takes.map((t, k) => ({
+    k, panel: t.panel, key: images[`voice-${k}`] || null,
+    lines: t.lines.map((n) => ({ who: plan.lines[n].who, text: plan.lines[n].text, title: plan.lines[n].panel === "title", end: plan.lines[n].panel === "end" })),
+  })),
 });
 
-/** POST /api/comics/:id/voice — the voice plan (made once by the voice director), with any clips already recorded. */
+/** POST /api/comics/:id/voice — the voice plan (made once by the voice director), with any takes already recorded. */
 export async function comicVoice(env: Env, id: string): Promise<Response> {
-  const { row, images } = await loadComic(env, id);
+  let { row, images } = await loadComic(env, id);
   if (!row.script) throw new HttpError(409, "no_script");
-  if (row.voice) return json(planView(JSON.parse(row.voice), images));
+  if (row.voice) {
+    const plan = JSON.parse(row.voice) as VoicePlan;
+    if (plan.v === VOICE_VERSION && plan.takes) return json(planView(plan, images));
+    // Older voice style: throw those recordings away and make new ones.
+    const old = Object.entries(images).filter(([slot]) => slot.startsWith("voice-"));
+    await env.DB.prepare("DELETE FROM comic_images WHERE comic_id = ? AND slot LIKE 'voice-%'").bind(row.id).run();
+    if (old.length) await env.PAGES.delete(old.map(([, key]) => key));
+    images = Object.fromEntries(Object.entries(images).filter(([slot]) => !slot.startsWith("voice-")));
+  }
   if (env.MOCK_AI !== "1" && !env.GEMINI_API_KEY) throw new HttpError(503, "voice_off");
   const plan = await directVoices(env, JSON.parse(row.script) as Script);
   await env.DB.prepare("UPDATE comics SET voice = ? WHERE id = ?").bind(JSON.stringify(plan), row.id).run();
   return json(planView(plan, images));
 }
 
-/** POST /api/comics/:id/voice/:k — record line k (once) and return its clip. */
+/** POST /api/comics/:id/voice/:k — record take k (once) and return its clip. */
 export async function comicVoiceLine(env: Env, id: string, kStr: string): Promise<Response> {
+  if (!/^\d{1,2}$/.test(kStr)) throw new HttpError(400, "bad_take");
   const k = Number(kStr);
-  if (!/^\d{1,2}$/.test(kStr)) throw new HttpError(400, "bad_line");
   const { row, images } = await loadComic(env, id);
   if (!row.voice) throw new HttpError(409, "no_voice_plan");
+  const plan = JSON.parse(row.voice) as VoicePlan;
+  if (plan.v !== VOICE_VERSION || !plan.takes) throw new HttpError(409, "no_voice_plan");
+  if (!plan.takes[k]) throw new HttpError(400, "bad_take");
   const slot = `voice-${k}`;
   if (images[slot]) return json({ k, key: images[slot] });
-  const plan = JSON.parse(row.voice) as VoicePlan;
-  const line = plan.lines[k];
-  if (!line) throw new HttpError(400, "bad_line");
-  const clip = await speakLine(env, line, plan.voices[line.who] || plan.voices.Narrator);
+  const clip = await speakTake(env, plan, k);
   const key = `comics/${row.id}/${slot}-${uid().slice(-8)}.${EXT[clip.mime] || "wav"}`;
   await env.PAGES.put(key, clip.bytes, { httpMetadata: { contentType: clip.mime } });
-  const still = await env.DB.prepare("SELECT 1 AS ok FROM comics WHERE id = ?").bind(row.id).first();
-  if (!still) { await env.PAGES.delete(key); throw new HttpError(404, "not_found"); }
+  // The comic (or its voice plan) may have changed while this was recording.
+  const still = await env.DB.prepare("SELECT voice FROM comics WHERE id = ?").bind(row.id).first<{ voice: string | null }>();
+  if (!still || still.voice !== row.voice) { await env.PAGES.delete(key); throw new HttpError(409, "no_voice_plan"); }
   const res = await env.DB.prepare(
     "INSERT INTO comic_images (comic_id, slot, r2_key, prompt, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(comic_id, slot) DO NOTHING",
-  ).bind(row.id, slot, key, `${line.how}: ${line.text}`, Date.now()).run();
-  if (!res.meta.changes) {   // two requests raced; keep the first clip
+  ).bind(row.id, slot, key, `take ${k}`, Date.now()).run();
+  if (!res.meta.changes) {   // two requests raced; keep the first recording
     await env.PAGES.delete(key);
     const kept = await env.DB.prepare("SELECT r2_key FROM comic_images WHERE comic_id = ? AND slot = ?").bind(row.id, slot).first<{ r2_key: string }>();
     return json({ k, key: kept?.r2_key });

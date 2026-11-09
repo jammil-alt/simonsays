@@ -127,7 +127,8 @@ async function showComic(id) {
   if (location.hash !== '#/c/' + id) return;
   current = c;
   renderComic(c);
-  if (c.art) finishDrawing(c);
+  // Draw what's missing, then record the voices quietly in the background so reading starts right away.
+  Promise.resolve(c.art ? finishDrawing(c) : null).then(() => prepareVoices(c));
 }
 
 function bubblesHTML(p) {
@@ -257,16 +258,20 @@ async function deleteComic(c) {
 }
 
 /* ---------- read aloud ----------
-   Real voices: the Worker's voice director gives every character a voice and every line a direction,
-   and Gemini performs each line once (kept with the comic, so re-reading is instant and free).
-   If voices aren't available, it falls back to the browser's own (robotic) voice. */
+   The Worker's voice director gives every speaker a voice and a style, and Gemini performs one panel ("take") at a
+   time, at most two voices per take. Takes are recorded once, in the background right after the comic is drawn,
+   and kept with the comic. If a take can't be recorded, its lines are read by the browser's own voice instead.
+   Every wait has a time limit, so reading never hangs. */
 let reading = null;               // the read-aloud in progress: { stopped, source }
 let audioCtx = null;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const withTimeout = (p, ms, code = 'timeout') => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error(code), { code })), ms))]);
+const BUSY = ['rate_limited', 'overloaded', 'timeout', 'offline'];
 
 function setReadBtn(text) { const b = $('#readBtn'); if (b) b.textContent = text; }
 function highlight(i) {
   app.querySelectorAll('.panel.reading').forEach(p => p.classList.remove('reading'));
-  const el = i == null || i === 'title' ? null : app.querySelector(`.panel[data-i="${i}"]`);
+  const el = i == null ? null : app.querySelector(`.panel[data-i="${i}"]`);
   if (el) { el.classList.add('reading'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 }
 function stopReading() {
@@ -278,32 +283,70 @@ function stopReading() {
 function unlockAudio() {
   const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
   if (!audioCtx) audioCtx = new AC();
-  if (audioCtx.state === 'suspended') audioCtx.resume();
+  if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
   const b = audioCtx.createBuffer(1, 1, 22050), src = audioCtx.createBufferSource();   // silent blip to wake it up
   src.buffer = b; src.connect(audioCtx.destination); src.start(0);
   return audioCtx;
 }
+/** Play one clip. A safety timer moves on even if the iPad paused audio and "ended" never comes. */
 function playBuffer(ac, buf, run) {
   return new Promise(res => {
+    if (ac.state !== 'running') ac.resume().catch(() => {});
+    let done = false;
+    const finish = () => { if (!done) { done = true; clearTimeout(timer); res(); } };
+    const timer = setTimeout(finish, (buf.duration + 3) * 1000);
     const src = ac.createBufferSource(); src.buffer = buf; src.connect(ac.destination);
-    src.onended = () => res(); run.source = src; src.start(0);
+    src.onended = finish; run.source = src; src.start(0);
   });
 }
 function browserSay(text) {
-  return new Promise(res => {
-    if (!('speechSynthesis' in window)) return res();
-    const u = new SpeechSynthesisUtterance(text); u.rate = 0.92; u.pitch = 1.05;
+  if (!('speechSynthesis' in window)) return Promise.resolve();
+  return withTimeout(new Promise(res => {
+    const u = new SpeechSynthesisUtterance(text); u.rate = 1; u.pitch = 1;
     u.onend = u.onerror = () => res(); speechSynthesis.speak(u);
-  });
+  }), 4000 + text.length * 120).catch(() => speechSynthesis.cancel());
 }
-function scriptLinesForBrowser(c) {
-  const out = [{ panel: 'title', who: 'Narrator', text: c.script.title }];
+function browserTakes(c) {         // same grouping idea as the server, for when voices aren't available at all
+  const n = c.script.panels.length, takes = c.script.panels.map((p, i) => ({ panel: i, lines: [] }));
+  takes[0].lines.push({ who: 'Narrator', text: c.script.title, title: true });
   c.script.panels.forEach((p, i) => {
-    if (p.caption) out.push({ panel: i, who: 'Narrator', text: p.caption });
-    for (const d of p.dialogue) out.push({ panel: i, who: d.speaker, text: `${d.speaker} says: ${d.text}` });
+    if (p.caption) takes[i].lines.push({ who: 'Narrator', text: p.caption });
+    for (const d of p.dialogue) takes[i].lines.push({ who: d.speaker, text: d.text });
   });
-  out.push({ panel: 'end', who: 'Narrator', text: 'The End.' });
-  return out;
+  takes[n - 1].lines.push({ who: 'Narrator', text: 'The End.', end: true });
+  return takes;
+}
+const sayLine = l => browserSay(l.who === 'Narrator' ? l.text : `${l.who} says: ${l.text}`);
+
+/** The voice plan, fetched once per comic (the server makes it the first time). */
+function voicePlan(c) {
+  if (!c.voicePlan) c.voicePlan = API.comicVoice(c.id).catch(e => { if (e.code !== 'voice_off') c.voicePlan = null; throw e; });
+  return c.voicePlan;
+}
+/** Record one take (once per comic), retrying when Gemini is busy. Resolves to the clip's storage key. */
+function recordTake(c, t) {
+  c.takeJobs = c.takeJobs || new Map();
+  if (t.key) return Promise.resolve(t.key);
+  if (!c.takeJobs.has(t.k)) c.takeJobs.set(t.k, (async () => {
+    for (let attempt = 0; ; attempt++) {
+      try { return (t.key = (await withTimeout(API.comicVoiceLine(c.id, t.k), 90000)).key); }
+      catch (e) {
+        if (attempt < 2 && BUSY.includes(e.code)) { await sleep(6000 * (attempt + 1)); continue; }
+        c.takeJobs.delete(t.k);          // let a later read try again
+        throw e;
+      }
+    }
+  })());
+  return c.takeJobs.get(t.k);
+}
+/** Record every take, one at a time (gentle on Gemini's rate limits). Runs in the background. */
+function prepareVoices(c) {
+  if (c.preparing || !c.script) return c.preparing;
+  c.preparing = (async () => {
+    let plan; try { plan = await voicePlan(c); } catch { return; }
+    for (const t of plan.takes) { try { await recordTake(c, t); } catch { /* reading will retry or fall back */ } }
+  })().finally(() => { c.preparing = null; });
+  return c.preparing;
 }
 
 async function readAloud(only) {
@@ -311,63 +354,40 @@ async function readAloud(only) {
   stopReading();
   const run = { stopped: false, source: null }; reading = run;
   const ac = unlockAudio();
-  setReadBtn('Stop reading');
-  const wanted = l => only == null || l.panel === only;
+  const fails = new Set();
 
   let plan = null;
-  if (ac && c.voice !== false) {
-    if (!c.voice) setReadBtn('Warming up the voices…');
-    try { plan = c.voice || (c.voice = await API.comicVoice(c.id)); }
-    catch (e) { if (e.code === 'voice_off') c.voice = false; plan = null; }
+  setReadBtn('Getting the voices ready…');
+  if (ac) { try { plan = await withTimeout(voicePlan(c), 45000); } catch (e) { fails.add(e.code || 'error'); } }
+  if (run.stopped) return;
+  if (plan) prepareVoices(c);            // make sure the rest is being recorded
+  const takes = (plan ? plan.takes : browserTakes(c)).filter(t => only == null || t.panel === only);
+
+  for (let n = 0; n < takes.length; n++) {
+    if (run.stopped) return;
+    const t = takes[n];
+    let buf = null;
+    if (plan) {
+      if (!t.key) setReadBtn('Getting the voices ready…');
+      try {
+        const key = await withTimeout(recordTake(c, t), 100000);
+        const r = await withTimeout(fetch('/img/' + key), 20000);
+        if (!r.ok) throw Object.assign(new Error('clip'), { code: 'clip_' + r.status });
+        buf = await withTimeout(ac.decodeAudioData(await r.arrayBuffer()), 10000);
+      } catch (e) { fails.add(e.code || e.name || 'error'); }
+    }
     if (run.stopped) return;
     setReadBtn('Stop reading');
-  }
-  if (!plan) {                                   // fallback: the browser's own voice
-    for (const l of scriptLinesForBrowser(c).filter(wanted)) {
-      if (run.stopped) return;
-      highlight(l.panel); await browserSay(l.text);
-    }
-    if (!run.stopped) stopReading();
-    return;
-  }
-
-  const lines = plan.lines.filter(wanted);
-  const clips = new Map();
-  const fails = new Set();                       // why lines fell back to the browser voice, shown afterwards
-  const clip = l => {                            // record (once) and decode one line
-    if (!clips.has(l.k)) clips.set(l.k, (async () => {
-      for (let attempt = 0; ; attempt++) {
-        try {
-          if (!l.key) l.key = (await API.comicVoiceLine(c.id, l.k)).key;
-          const r = await fetch('/img/' + l.key);
-          if (!r.ok) throw Object.assign(new Error('clip'), { code: 'clip_' + r.status });
-          return await ac.decodeAudioData(await r.arrayBuffer());
-        } catch (e) {
-          // Busy or rate-limited: wait a moment and try once more before using the backup voice.
-          if (attempt < 1 && !run.stopped && ['rate_limited', 'overloaded', 'timeout', 'offline'].includes(e.code)) {
-            await new Promise(r => setTimeout(r, 3000)); continue;
-          }
-          throw e;
-        }
-      }
-    })());
-    return clips.get(l.k);
-  };
-  for (let n = 0; n < lines.length; n++) {
-    if (run.stopped) return;
-    lines.slice(n, n + 3).forEach(l => clip(l).catch(() => {}));   // stay two lines ahead (gentle on rate limits)
-    const l = lines[n];
-    let buf = null;
-    try { buf = await clip(l); } catch (e) { buf = null; fails.add(e?.code || e?.name || 'error'); }
-    if (run.stopped) return;
-    highlight(l.panel);
+    highlight(t.panel);
     if (buf) await playBuffer(ac, buf, run);
-    else await browserSay(l.who === 'Narrator' ? l.text : `${l.who} says: ${l.text}`);   // one line failed: don't stop the story
-    await new Promise(r => setTimeout(r, l.panel !== lines[n + 1]?.panel ? 350 : 120)); // a breath between panels
+    else for (const l of t.lines) { if (run.stopped) return; await sayLine(l); }   // this take only: the story keeps going
+    await sleep(300);
   }
   if (run.stopped) return;
+  if (only == null) { highlight('end'); await sleep(1200); }
+  if (run.stopped) return;
   stopReading();
-  if (fails.size) toast(`Some lines used the backup voice (${[...fails].join(', ')}). Tap "Read it to me" again to retry them.`);
+  if (fails.size) toast(`Some parts used the backup voice (${[...fails].join(', ')}). Tap "Read it to me" again to retry them.`);
 }
 
 /* ---------- library ---------- */

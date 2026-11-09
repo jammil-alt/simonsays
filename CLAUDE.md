@@ -45,10 +45,14 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
   over the art, so spelling is exact. The script JSON shape is a contract between `src/comic-prompt.ts` and
   `public/comic/comic.js`. Keep it calm: no points, streaks or timers. No daily cap by default (`COMIC_DAILY_LIMIT` turns one on).
   Without `GEMINI_API_KEY` comics show as text panels.
-- Read-aloud: POST /api/comics/:id/voice makes the voice plan once (CLAUDE_TAG_MODEL picks a Gemini voice per
-  speaker and a "Say …" direction per line; lines come from `scriptLines()` so their numbers are stable), then
-  POST /api/comics/:id/voice/:k records line k once (GEMINI_TTS_MODEL, PCM wrapped as WAV, stored as slot voice-k).
-  The page plays clips with Web Audio, unlocked inside the tap (iPad rule), and falls back to speechSynthesis.
+- Read-aloud: POST /api/comics/:id/voice makes the voice plan once (CLAUDE_TAG_MODEL picks a Gemini voice and a
+  short style per speaker, plus optional moods; lines come from `scriptLines()`), grouped into "takes" by
+  `makeTakes()`: one panel at a time, max 2 voices (Gemini multi-speaker). POST /api/comics/:id/voice/:k records take
+  k once (GEMINI_TTS_MODEL, PCM wrapped as WAV, slot voice-k). The page records all takes in the background, one at a
+  time, as soon as a comic is drawn, plays them with Web Audio (unlocked inside the tap, iPad rule), puts a time limit
+  on every wait, and reads a failed take with speechSynthesis. The sound is "funny older cousin", not a teacher:
+  see PERFORMANCE / DIRECTOR in `src/voice.ts`. Bump VOICE_VERSION when changing the style; old recordings are
+  then redone on the next read.
 - Games are for a beginner on a physical keyboard: every level shows the next key and which finger to use.
   Level ids in `public/games/shared.js` (LEVELS) must match the allow-list in `src/routes/games.ts`.
   Letters are shown UPPERCASE (like the keycaps); words are lowercase.
