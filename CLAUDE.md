@@ -30,7 +30,8 @@ Live at https://simonswork.app. Full plan: `docs/PLAN.md`. Original claude.ai pr
 - All reads and writes go through `/api/*`. The client never calls Anthropic directly; the key is a Worker secret.
 - Clean copies are HTML that Claude writes: `{v: 2, title, html}`. The tags/attributes allowed in `RULES`
   (`src/prompt.ts`) must match `sanitizePage` in `public/app.js`, which is the only thing standing between Claude's
-  HTML and the DOM; never render a page without it. Interactive parts: `<input data-f>`, `<textarea data-f>`,
+  HTML and the DOM; never render a page without it. Interactive parts: `<input data-f>` (data-kind number | word |
+  sentence | line; `line` is a long handwriting-paper line next to a printed word, for copy/print practice), `<textarea data-f>`,
   `data-paint` (colourable) inside `data-group="one|many"`. Change prompt and renderer together.
 - Older clean copies are the JSON worksheet (`line`, `vertical`, `write`, `choice`, `table`, `wordbank`, `text`,
   `figure`) drawn by `renderWorksheet`; keep it working. A Fix on one rebuilds it as HTML.

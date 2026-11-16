@@ -603,9 +603,9 @@ function renderPage(box, data, pid) {
   root.className = 'ws ws2';
   root.append(...sanitizePage(data.html).childNodes);
   root.querySelectorAll('input').forEach(el => {
-    const kind = ['number', 'word', 'sentence'].includes(el.dataset.kind) ? el.dataset.kind : 'word';
+    const kind = ['number', 'word', 'sentence', 'line'].includes(el.dataset.kind) ? el.dataset.kind : 'word';
     Object.assign(el, { type: 'text', className: 'blank ' + kind, autocomplete: 'off', spellcheck: false });
-    el.setAttribute('aria-label', 'Answer');
+    el.setAttribute('aria-label', kind === 'line' ? 'Writing line' : 'Answer');
     if (kind === 'number') { el.inputMode = 'numeric'; el.size = 3; } else if (kind === 'word') el.size = 8;
   });
   root.querySelectorAll('textarea').forEach(el => { el.className = 'lined'; el.rows = Math.max(2, Math.min(12, +el.dataset.lines || 3)); el.setAttribute('aria-label', 'Writing answer'); });

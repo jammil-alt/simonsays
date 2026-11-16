@@ -161,6 +161,12 @@ h1{margin:0;font-size:20px;line-height:1.2;font-weight:600;color:var(--text-prim
 .blank.word{text-align:left}
 .blank.sentence{flex:1 1 12em;text-align:left}
 .blank:focus{outline:none;border-bottom-color:var(--action);background:var(--selected-bg)}
+/* A long writing line, like handwriting paper: solid top, dotted middle, dark baseline. It fills its row. */
+.blank.line{display:block;width:100%;flex:1 1 10em;min-width:4em;max-width:100%;text-align:left;font-size:1.25em;line-height:1;height:2.1em;
+  padding:.78em .35em 0;border-top:1.5px solid #9fb3c4;border-bottom:2px solid #333;border-radius:0;
+  background:var(--ink-wash) linear-gradient(to right,#9fb3c4 55%,transparent 55%) 0 52%/9px 1.5px repeat-x}
+.blank.line:focus{background-color:var(--selected-bg);border-bottom-color:var(--action)}
+.ws2 .blank.line{margin:.15em 0 .5em}
 .vert{display:inline-grid;justify-items:end;font-variant-numeric:tabular-nums;font-size:1.15em;line-height:1.3;min-width:4.2em}
 .vert .row2{display:flex;gap:.4em;width:100%;justify-content:space-between;border-bottom:2px solid #222;padding-bottom:.1em}
 .vert .blank{width:100%;text-align:right;margin-top:.2em;border-bottom:0;font-size:1em}

@@ -19,7 +19,13 @@ Layout: make it look like the printed sheet.
 Parts the child uses (the app makes exactly these interactive, nothing else):
 - A box to type a short answer: <input data-f="b1" data-kind="number"> or data-kind="word". Put it right where the
   blank is on the sheet, inline in the sentence.
-- Lines to write sentences: <textarea data-f="w1" data-lines="3"></textarea>
+- A long writing line: <input data-f="b2" data-kind="line">. Use it wherever the sheet prints a word or sentence and a
+  line to write it on ("Print words", "Write each word 3 times", "Trace and write", "Copy the sentence"). Keep the
+  printed word and its line on the SAME row, word first, the way the sheet does:
+  <div style="display:flex;align-items:baseline;gap:.6em"><span style="font-size:1.4em">bring</span><input data-f="b2" data-kind="line"></div>
+  A sentence to copy is printed on its own row with its line right under it (one data-kind="line" per line the sheet
+  gives). Never turn these into a heading with a box under it.
+- Several lines for the child's own writing ("Write two sentences about…", a story): <textarea data-f="w1" data-lines="3"></textarea>
 - Anything the child colours, circles, underlines or crosses out (a word, a table cell, a picture part, an answer
   choice): give that element data-paint="p1". Wrap the paintable things of one question in an element with
   data-group="many" (any number can be marked, e.g. "colour all the th words") or data-group="one" (pick one answer,
